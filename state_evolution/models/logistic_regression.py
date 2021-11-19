@@ -7,16 +7,18 @@ class LogisticRegression(Model):
     Implements updates for logistic regression task.
     See base_model for details on modules.
     '''
-    def __init__(self, *, sample_complexity, regularisation, data_model):
+    def __init__(self, Delta = 0., *, sample_complexity, regularisation, data_model):
         self.alpha = sample_complexity
         self.lamb = regularisation
+        # NOTE : Don't add Delta in the data_model because the noise is not a property of the data but of the teacher
+        self.Delta = Delta
         self.data_model = data_model
 
     def get_info(self):
         info = {
             'model': 'logistic_regression',
             'sample_complexity': self.alpha,
-            'lambda': self.lamb,
+            'lambda': self  .lamb,
         }
         return info
 
@@ -42,9 +44,10 @@ class LogisticRegression(Model):
     def _update_hatoverlaps(self, V, q, m):
         Vstar = self.data_model.rho - m**2/q
 
-        Im = integrate_for_mhat(m, q, V, Vstar)
-        Iv = integrate_for_Vhat(m, q, V, Vstar)
-        Iq = integrate_for_Qhat(m, q, V, Vstar)
+        # don't need to change the functions to add the noise, just need to add the noise variance to Vstar
+        Im = integrate_for_mhat(m, q, V, Vstar + self.Delta)
+        Iv = integrate_for_Vhat(m, q, V, Vstar + self.Delta)
+        Iq = integrate_for_Qhat(m, q, V, Vstar + self.Delta)
 
         mhat = self.alpha/np.sqrt(self.data_model.gamma) * Im/V
         Vhat = self.alpha * ((1/V) - (1/V**2) * Iv)
@@ -57,8 +60,12 @@ class LogisticRegression(Model):
         return self._update_overlaps(Vhat, qhat, mhat)
 
     def get_test_error(self, q, m):
-        return np.arccos(m/np.sqrt(q * self.data_model.rho))/np.pi
+        # NOTE : from my computations, it looks like we just need to replace rho -> rho + Delta
+        # TODO : Check my computations
+        return np.arccos(m/np.sqrt(q * (self.data_model.rho + self.Delta)))/np.pi
 
     def get_train_loss(self, V, q, m):
+        # NOTE : from my computations, it looks like we just need to replace rho -> rho + Delta
+        # TODO : Check my computations
         Vstar = self.data_model.rho - m**2/q
-        return traning_error_logistic(m, q, V, Vstar)
+        return traning_error_logistic(m, q, V, Vstar + self.Delta)
