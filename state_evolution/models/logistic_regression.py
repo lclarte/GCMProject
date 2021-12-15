@@ -18,11 +18,12 @@ class LogisticRegression(Model):
         info = {
             'model': 'logistic_regression',
             'sample_complexity': self.alpha,
-            'lambda': self  .lamb,
+            'lambda': self.lamb,
         }
         return info
 
     def _update_overlaps(self, Vhat, qhat, mhat):
+        # should not be affected by the noise level
         V = np.mean(self.data_model.spec_Omega/(self.lamb + Vhat * self.data_model.spec_Omega))
 
         if self.data_model.commute:
@@ -30,7 +31,7 @@ class LogisticRegression(Model):
                                            mhat**2 * self.data_model.spec_Omega * self.data_model.spec_PhiPhit) /
                                           (self.lamb + Vhat*self.data_model.spec_Omega)**2)
 
-            m = mhat/np.sqrt(self.data_model.gamma) * np.mean(self.data_model.spec_PhiPhit/(self.lamb + Vhat*self.data_model.spec_Omega))
+            m = mhat / np.sqrt(self.data_model.gamma) * np.mean(self.data_model.spec_PhiPhit/(self.lamb + Vhat*self.data_model.spec_Omega))
 
         else:
             q = qhat * np.mean(self.data_model.spec_Omega**2 / (self.lamb + Vhat*self.data_model.spec_Omega)**2)
@@ -44,7 +45,6 @@ class LogisticRegression(Model):
     def _update_hatoverlaps(self, V, q, m):
         Vstar = self.data_model.rho - m**2/q
 
-        # don't need to change the functions to add the noise, just need to add the noise variance to Vstar
         Im = integrate_for_mhat(m, q, V, Vstar + self.Delta)
         Iv = integrate_for_Vhat(m, q, V, Vstar + self.Delta)
         Iq = integrate_for_Qhat(m, q, V, Vstar + self.Delta)
