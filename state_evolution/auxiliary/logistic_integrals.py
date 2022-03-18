@@ -47,6 +47,7 @@ def f_Vhat_minus(ξ, M, Q, V, Vstar):
     ωstar = (M/np.sqrt(Q))*ξ
     λstar_minus = minimize_scalar(lambda x: moreau_loss(x, -1, ω, V))['x']
     return (1/(1/V + (1/4) * (1/np.cosh(-λstar_minus/2)**2))) * (1 - erf(ωstar/np.sqrt(2*Vstar)))
+    
 def integrate_for_Vhat(M, Q, V, Vstar):
     I1 = quad(lambda ξ: f_Vhat_plus(ξ, M, Q, V, Vstar) * gaussian(ξ), -10, 10, limit=500)[0]
     I2 = quad(lambda ξ: f_Vhat_minus(ξ, M, Q, V, Vstar) * gaussian(ξ), -10, 10, limit=500)[0]
@@ -83,7 +84,7 @@ def Integrand_training_error_plus_logistic(ξ, M, Q, V, Vstar):
 def Integrand_training_error_minus_logistic(ξ, M, Q, V, Vstar):
     ω = np.sqrt(Q)*ξ
     ωstar = (M/np.sqrt(Q))*ξ
-#     λstar_minus = np.float(mpmath.findroot(lambda λstar_minus: λstar_minus - ω + V/(1 + np.exp(-np.float(λstar_minus))), 10e-10))
+#   λstar_minus = np.float(mpmath.findroot(lambda λstar_minus: λstar_minus - ω + V/(1 + np.exp(-np.float(λstar_minus))), 10e-10))
     λstar_minus = minimize_scalar(lambda x: moreau_loss(x, -1, ω, V))['x']
     
     l_minus = loss(-λstar_minus)
@@ -98,4 +99,5 @@ def traning_error_logistic(M, Q, V, Vstar):
 # NOTE : Personal modification on the code 
 
 def test_error_logistic(M, Q, V,):
-    raise NotImplementedError
+    # test LOSS for the logistic regression
+    raise 

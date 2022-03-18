@@ -13,10 +13,11 @@ class CustomExperiment(object):
     allowing for running several sample complexities for the same pre-diagonalised
     data model.
     '''
-    def __init__(self, *, task, regularisation, data_model):
+    def __init__(self, *, task, regularisation, data_model, sigma):
         self.task = task
         self.lamb = regularisation
         self.data_model = data_model
+        self.sigma = sigma
 
     def run_experiment(self, initialisation='uninformed', tolerance=1e-10, damping=0,
                        verbose=False, max_steps=1000, *, sample_complexity):
@@ -44,7 +45,8 @@ class CustomExperiment(object):
         elif self.task == 'logistic_regression':
             self.model = LogisticRegression(sample_complexity = sample_complexity,
                                             regularisation=self.lamb,
-                                            data_model = self.data_model)
+                                            data_model = self.data_model,
+                                            Delta = self.sigma**2)
 
         elif self.task == 'l2_classification':
             self.model = L2Classification(sample_complexity = sample_complexity,

@@ -15,7 +15,7 @@ class CustomExperiment(object):
     data model.
     '''
     def __init__(self,initialisation='uninformed', tolerance=1e-10, damping=0,
-                       verbose=False, max_steps=1000, *,
+                       verbose=False, max_steps=1000, sigma = 0.0, *,
                        task, regularisation, data_model):
 
         self.task = task
@@ -28,6 +28,7 @@ class CustomExperiment(object):
         self.damping = damping
         self.verbose = verbose
         self.max_steps = max_steps
+        self.sigma = sigma
 
 
     def learning_curve(self, *, alphas):
@@ -94,7 +95,9 @@ class CustomExperiment(object):
         elif self.task == 'logistic_regression':
             self.model = LogisticRegression(sample_complexity = sample_complexity,
                                             regularisation=self.lamb,
-                                            data_model = self.data_model)
+                                            data_model = self.data_model,
+                                            # NOTE : Adding the noise here ! 
+                                            Delta = self.sigma**2)
 
         elif self.task == 'l2_classification':
             self.model = L2Classification(sample_complexity = sample_complexity,

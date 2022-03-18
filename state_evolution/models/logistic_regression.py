@@ -1,6 +1,15 @@
+from math import erfc
 import numpy as np
+import scipy.stats as stats
+import scipy.integrate
 from .base_model import Model
 from ..auxiliary.logistic_integrals import integrate_for_mhat, integrate_for_Vhat, integrate_for_Qhat, traning_error_logistic
+
+def sigmoid(x):
+    return 1. / (1. + np.exp(-x))
+
+def sigmoid_inv(y):
+    return np.log(y/(1-y))
 
 class LogisticRegression(Model):
     '''
@@ -11,6 +20,7 @@ class LogisticRegression(Model):
         self.alpha = sample_complexity
         self.lamb = regularisation
         # NOTE : Don't add Delta in the data_model because the noise is not a property of the data but of the teacher
+        # Delta = Sigma**2 
         self.Delta = Delta
         self.data_model = data_model
 
@@ -39,7 +49,6 @@ class LogisticRegression(Model):
 
             m = mhat/np.sqrt(self.data_model.gamma) * np.mean(self.data_model._UTPhiPhiTU/(self.lamb + Vhat * self.data_model.spec_Omega))
 
-
         return V, q, m
 
     def _update_hatoverlaps(self, V, q, m):
@@ -60,12 +69,30 @@ class LogisticRegression(Model):
         return self._update_overlaps(Vhat, qhat, mhat)
 
     def get_test_error(self, q, m):
-        # NOTE : from my computations, it looks like we just need to replace rho -> rho + Delta
-        # TODO : Check my computations
         return np.arccos(m/np.sqrt(q * (self.data_model.rho + self.Delta)))/np.pi
 
+    def get_test_error_0(self, q, m):
+        # Test error if the test data is NOT noisy, useful to minimize the test error more efficiently 
+        return np.arccos(m/np.sqrt(q * self.data_model.rho))/np.pi
+
+    def get_test_loss(self, q, m):
+        Sigma = np.array([
+            [self.data_model.rho + self.Delta, m],
+            [m, q]
+        ])
+
+        def loss_integrand(lf_teacher, lf_erm):
+            return np.log(1. + np.exp(- np.sign(lf_teacher) * lf_erm)) * stats.multivariate_normal.pdf([lf_teacher, lf_erm], mean=np.zeros(2), cov=Sigma)
+        
+        ranges = [(-10.0, 10.0), (-10.0, 10.0)]
+        lossg_mle = scipy.integrate.nquad(loss_integrand, ranges)[0]
+        return lossg_mle
+    
+    def get_calibration(self, q, m, p=0.75):
+        inv_p = sigmoid_inv(p)
+        rho   = self.data_model.rho
+        return p - 0.5 * erfc(- (m / q * inv_p) / np.sqrt(2*(rho - m**2 / q + self.Delta)))
+
     def get_train_loss(self, V, q, m):
-        # NOTE : from my computations, it looks like we just need to replace rho -> rho + Delta
-        # TODO : Check my computations
         Vstar = self.data_model.rho - m**2/q
         return traning_error_logistic(m, q, V, Vstar + self.Delta)

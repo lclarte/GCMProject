@@ -91,6 +91,10 @@ class StateEvolution(object):
                 self.status = 1
                 break
 
+            if self.overlaps['self_overlap'][t+1] > 1000.0:
+                self.status = 1
+                break
+
         if t == self.max_steps-1:
             # If iterations didn't converge, set status = -1
             if self.verbose:
@@ -105,6 +109,13 @@ class StateEvolution(object):
         self.overlaps['teacher_student'] = self.overlaps['teacher_student'][:t+1]
 
         self.test_error = self.model.get_test_error(self.overlaps['self_overlap'][-1],
+                                                    self.overlaps['teacher_student'][-1])
+
+        # ONLY WORKS IF THE MODEL IS LOGISTIC REGRESSION
+        self.test_loss = self.model.get_test_loss(self.overlaps['self_overlap'][-1],
+                                                    self.overlaps['teacher_student'][-1])
+
+        self.calibration = self.model.get_calibration(self.overlaps['self_overlap'][-1],
                                                     self.overlaps['teacher_student'][-1])
 
         self.train_loss = self.model.get_train_loss(self.overlaps['variance'][-1],
@@ -125,7 +136,9 @@ class StateEvolution(object):
                 'status': self.status,
                 'convergence_time': self.t_max,
                 'test_error': self.test_error,
+                'test_loss' : self.test_loss,
                 'train_loss': self.train_loss,
+                'calibration' : self.calibration,
                 'overlaps': {
                     'variance': self.overlaps['variance'][-1],
                     'self_overlap': self.overlaps['self_overlap'][-1],
