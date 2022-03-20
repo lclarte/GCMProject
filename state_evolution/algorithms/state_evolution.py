@@ -1,3 +1,4 @@
+from http.client import TEMPORARY_REDIRECT
 import numpy as np
 
 class StateEvolution(object):
@@ -110,17 +111,18 @@ class StateEvolution(object):
 
         self.test_error = self.model.get_test_error(self.overlaps['self_overlap'][-1],
                                                     self.overlaps['teacher_student'][-1])
+        try:
+            self.test_loss = self.model.get_test_loss(self.overlaps['self_overlap'][-1],
+                                                        self.overlaps['teacher_student'][-1])
 
-        # ONLY WORKS IF THE MODEL IS LOGISTIC REGRESSION
-        self.test_loss = self.model.get_test_loss(self.overlaps['self_overlap'][-1],
-                                                    self.overlaps['teacher_student'][-1])
+            self.calibration = self.model.get_calibration(self.overlaps['self_overlap'][-1],
+                                                        self.overlaps['teacher_student'][-1])
 
-        self.calibration = self.model.get_calibration(self.overlaps['self_overlap'][-1],
-                                                    self.overlaps['teacher_student'][-1])
-
-        self.train_loss = self.model.get_train_loss(self.overlaps['variance'][-1],
-                                                    self.overlaps['self_overlap'][-1],
-                                                    self.overlaps['teacher_student'][-1])
+            self.train_loss = self.model.get_train_loss(self.overlaps['variance'][-1],
+                                                        self.overlaps['self_overlap'][-1],
+                                                        self.overlaps['teacher_student'][-1])
+        except Exception as e:
+            print('Implemented only for logistic regression and BO')
 
     def get_info(self):
         info = {
@@ -136,13 +138,16 @@ class StateEvolution(object):
                 'status': self.status,
                 'convergence_time': self.t_max,
                 'test_error': self.test_error,
-                'test_loss' : self.test_loss,
-                'train_loss': self.train_loss,
-                'calibration' : self.calibration,
                 'overlaps': {
                     'variance': self.overlaps['variance'][-1],
                     'self_overlap': self.overlaps['self_overlap'][-1],
                     'teacher_student': self.overlaps['teacher_student'][-1]
                 }
             })
+            info.update({
+                'test_loss' : self.test_loss,
+                'train_loss': self.train_loss,
+                'calibration' : self.calibration,
+            })
+
         return info

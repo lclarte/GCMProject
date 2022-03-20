@@ -13,18 +13,22 @@ class Custom(DataModel):
     def __init__(self, *, teacher_teacher_cov, student_student_cov, 
                  teacher_student_cov, teacher_weights):
         
-        self.Psi = teacher_teacher_cov
-        self.Omega = student_student_cov
-        self.Phi = teacher_student_cov.T
+        self.Psi = teacher_teacher_cov   # teacher_size x teacher_size
+        self.Omega = student_student_cov # student_size x student_size
+        self.Phi = teacher_student_cov.T # because of transpose, will be size student_size x teacher_size
         self.theta = teacher_weights
         
         self.p, self.k = self.Phi.shape
+        # NOTE : Here, k = teacher size, p = student size (normalement)
         self.gamma = self.k / self.p
         
         self.PhiPhiT = (self.Phi @ self.theta.reshape(self.k,1) @ 
                         self.theta.reshape(1,self.k) @ self.Phi.T)
         
+        # NOTE : Old version of the code, relies on sampling theta
         self.rho = self.theta.dot(self.Psi @ self.theta) / self.k
+        # NOTE : Currently Only works if the data covariances are identity
+        self.limit_rho = np.trace(self.Phi.T @ self.Phi) / self.k
 
         self._check_sym()
         self._diagonalise() # see base_data_model

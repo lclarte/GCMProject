@@ -2,6 +2,7 @@ from math import erfc
 import numpy as np
 import scipy.stats as stats
 import scipy.integrate
+from scipy.linalg import sqrtm
 from .base_model import Model
 from ..auxiliary.logistic_integrals import integrate_for_mhat, integrate_for_Vhat, integrate_for_Qhat, traning_error_logistic
 
@@ -19,11 +20,30 @@ class LogisticRegression(Model):
     def __init__(self, Delta = 0., *, sample_complexity, regularisation, data_model):
         self.alpha = sample_complexity
         self.lamb = regularisation
+        self.data_model = data_model
+        # effective_Delta should be useful ONLY for the computatino of the test error,
+        # the additional noise due to the model mismatch is taken caren of indirectly in the state evolution
+
+        # Do a transformation of the matrices to simplify
+        self.teacher_size = data_model.k
+        self.student_size = data_model.p
+
+        self.Phi = data_model.Phi.T
+        self.Psi = data_model.Psi
+        self.Omega = data_model.Omega
+
+        Omega_inv      = np.linalg.inv(data_model.Omega)
+
+        # Effective noise is due to the mismatch in the models.
+        # Should appear only in the update of the hat overlaps normally
+        self.mismatch_noise_var = np.trace(self.Psi - self.Phi @ Omega_inv @ self.Phi.T) / self.teacher_size
+        
         # NOTE : Don't add Delta in the data_model because the noise is not a property of the data but of the teacher
         # Delta = Sigma**2 
         self.Delta = Delta
-        self.data_model = data_model
-
+        self.effective_Delta = Delta + self.mismatch_noise_var
+        self.rho = self.data_model.rho
+        
     def get_info(self):
         info = {
             'model': 'logistic_regression',
@@ -69,15 +89,12 @@ class LogisticRegression(Model):
         return self._update_overlaps(Vhat, qhat, mhat)
 
     def get_test_error(self, q, m):
-        return np.arccos(m/np.sqrt(q * (self.data_model.rho + self.Delta)))/np.pi
-
-    def get_test_error_0(self, q, m):
-        # Test error if the test data is NOT noisy, useful to minimize the test error more efficiently 
-        return np.arccos(m/np.sqrt(q * self.data_model.rho))/np.pi
+        # NOTE : Changed Delta -> effective_Delta to take into account the GCM
+        return np.arccos(m/np.sqrt(q * (self.data_model.rho + self.effective_Delta)))/np.pi
 
     def get_test_loss(self, q, m):
         Sigma = np.array([
-            [self.data_model.rho + self.Delta, m],
+            [self.data_model.rho + self.effective_Delta, m],
             [m, q]
         ])
 
@@ -89,10 +106,11 @@ class LogisticRegression(Model):
         return lossg_mle
     
     def get_calibration(self, q, m, p=0.75):
+        # TODO : Adapt to covariate model 
         inv_p = sigmoid_inv(p)
         rho   = self.data_model.rho
-        return p - 0.5 * erfc(- (m / q * inv_p) / np.sqrt(2*(rho - m**2 / q + self.Delta)))
+        return p - 0.5 * erfc(- (m / q * inv_p) / np.sqrt(2*(rho - m**2 / q + self.effective_Delta)))
 
     def get_train_loss(self, V, q, m):
         Vstar = self.data_model.rho - m**2/q
-        return traning_error_logistic(m, q, V, Vstar + self.Delta)
+        return traning_error_logistic(m, q, V, Vstar + self.effective_Delta)

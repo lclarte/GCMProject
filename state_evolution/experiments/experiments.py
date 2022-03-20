@@ -1,6 +1,7 @@
 from ..data_models.custom import Custom
 from ..models.ridge_regression import RidgeRegression
 from ..models.logistic_regression import LogisticRegression
+from ..models.bayes_optimal_probit import BayesOptimalProbit
 from ..algorithms.state_evolution import StateEvolution
 from ..models.l2_classification import L2Classification
 
@@ -52,7 +53,7 @@ class CustomExperiment(object):
             self.model = L2Classification(sample_complexity = sample_complexity,
                                             regularisation=self.lamb,
                                             data_model = self.data_model)
-
+    
         else:
             print('{} not implemented.'.format(self.task))
 
@@ -79,8 +80,7 @@ class CustomExperiment(object):
         sub_dir = '{}/{}'.format(data_dir, day)
         if not os.path.isdir(sub_dir):
             os.mkdir(sub_dir)
-
-                    name = '{}/{}_{}.json'.format(sub_dir, info['model'], unique_id)
-                    print('Saving experiment at {}'.format(name))
-                    with open(name, 'w') as outfile:
-                        json.dump(info, outfile)
+            name = '{}/{}_{}.json'.format(sub_dir, info['model'], unique_id)
+            print('Saving experiment at {}'.format(name))
+            with open(name, 'w') as outfile:
+                json.dump(info, outfile)

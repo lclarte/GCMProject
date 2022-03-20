@@ -2,6 +2,7 @@ from ..data_models.custom import Custom
 from ..models.ridge_regression import RidgeRegression
 from ..models.l2_classification import L2Classification
 from ..models.logistic_regression import LogisticRegression
+from ..models.bayes_optimal_probit import BayesOptimalProbit
 from ..algorithms.state_evolution import StateEvolution
 import pandas as pd
 
@@ -103,6 +104,11 @@ class CustomExperiment(object):
             self.model = L2Classification(sample_complexity = sample_complexity,
                                             regularisation=self.lamb,
                                             data_model = self.data_model)
+
+        elif self.task == 'bo_probit':
+            self.model = BayesOptimalProbit(sample_complexity = sample_complexity,
+                                            data_model = self.data_model,
+                                            Delta = self.sigma**2)
 
         else:
             print('{} not implemented.'.format(self.task))
