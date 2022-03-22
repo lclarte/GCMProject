@@ -5,15 +5,18 @@ for logistic regression.
 
 import numpy as np
 from scipy.integrate import quad
-from scipy.special import erf
+from scipy.special import erf, erfc
 from scipy.optimize import minimize_scalar
-
 
 def gaussian(x, mean=0, var=1):
     return np.exp(-.5 * (x-mean)**2/var) / np.sqrt(2*np.pi*var)
 
+def cdf(x):
+    return 0.5 * erfc(- x / np.sqrt(2.0))
+
 def loss(z):
-    return np.log(1 + np.exp(-z))
+    # NOTE : This is the main change compared to logistic_integrals.py
+    return - np.log(cdf(z))
 
 def moreau_loss(x, y, omega,V):
     return (x-omega)**2/(2*V) + loss(y*x)
@@ -71,7 +74,7 @@ def integrate_for_Qhat(M, Q, V, Vstar):
     I2 = quad(lambda ξ: f_qhat_minus(ξ, M, Q, V, Vstar)* gaussian(ξ), -10, 10, limit=500)[0]
     return (1/2) * (I1 + I2)
 
-def Integrand_training_error_plus_logistic(ξ, M, Q, V, Vstar):
+def Integrand_training_error_plus_probit(ξ, M, Q, V, Vstar):
     ω = np.sqrt(Q)*ξ
     ωstar = (M/np.sqrt(Q))*ξ
 #     λstar_plus = np.float(mpmath.findroot(lambda λstar_plus: λstar_plus - ω - V/(1 + np.exp(np.float(λstar_plus))), 10e-10))
@@ -81,7 +84,7 @@ def Integrand_training_error_plus_logistic(ξ, M, Q, V, Vstar):
     
     return (1 + erf(ωstar/np.sqrt(2*Vstar))) * l_plus
 
-def Integrand_training_error_minus_logistic(ξ, M, Q, V, Vstar):
+def Integrand_training_error_minus_probit(ξ, M, Q, V, Vstar):
     ω = np.sqrt(Q)*ξ
     ωstar = (M/np.sqrt(Q))*ξ
 #   λstar_minus = np.float(mpmath.findroot(lambda λstar_minus: λstar_minus - ω + V/(1 + np.exp(-np.float(λstar_minus))), 10e-10))
@@ -91,7 +94,7 @@ def Integrand_training_error_minus_logistic(ξ, M, Q, V, Vstar):
 
     return (1 - erf(ωstar/np.sqrt(2*Vstar))) * l_minus
 
-def traning_error_logistic(M, Q, V, Vstar):
-    I1 = quad(lambda ξ: Integrand_training_error_plus_logistic(ξ, M, Q, V, Vstar) * gaussian(ξ), -10, 10, limit=500)[0]
-    I2 = quad(lambda ξ: Integrand_training_error_minus_logistic(ξ, M, Q, V, Vstar) * gaussian(ξ), -10, 10, limit=500)[0]
+def traning_error_probit(M, Q, V, Vstar):
+    I1 = quad(lambda ξ: Integrand_training_error_plus_probit(ξ, M, Q, V, Vstar) * gaussian(ξ), -10, 10, limit=500)[0]
+    I2 = quad(lambda ξ: Integrand_training_error_minus_probit(ξ, M, Q, V, Vstar) * gaussian(ξ), -10, 10, limit=500)[0]
     return (1/2)*(I1 + I2)
