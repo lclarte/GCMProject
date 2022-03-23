@@ -37,7 +37,7 @@ class StateEvolution(object):
         }
 
         if self.init == 'uninformed':
-            self.overlaps['variance'][0] = 1000
+            self.overlaps['variance'][0] = 100
             self.overlaps['self_overlap'][0] = 0.001
             self.overlaps['teacher_student'][0] = 0.001
 
@@ -92,10 +92,12 @@ class StateEvolution(object):
                 self.status = 1
                 break
 
+            """
             if self.overlaps['self_overlap'][t+1] > 1000.0:
                 self.status = 1
                 break
-
+            """
+            
         if t == self.max_steps-1:
             # If iterations didn't converge, set status = -1
             if self.verbose:

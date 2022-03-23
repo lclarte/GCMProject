@@ -1,12 +1,10 @@
-# TODO : Replace all logistic sutff by probit
-
 from math import erfc
 import numpy as np
 import scipy.stats as stats
 import scipy.integrate
 from scipy.linalg import sqrtm
 from .base_model import Model
-from ..auxiliary.probit_integrals import integrate_for_mhat, integrate_for_Vhat, integrate_for_Qhat, traning_error_probit
+from ..auxiliary.probit_integrals import integrate_for_mhat, integrate_for_mhat_der, integrate_for_Vhat, integrate_for_Qhat, traning_error_probit
 
 def sigmoid(x):
     return 1. / (1. + np.exp(-x))
@@ -16,7 +14,7 @@ def sigmoid_inv(y):
 
 class ProbitRegression(Model):
     '''
-    Implements updates for probit regression task.
+    Implements updates for logistic regression task.
     See base_model for details on modules.
     '''
     def __init__(self, Delta = 0., *, sample_complexity, regularisation, data_model):
@@ -70,7 +68,6 @@ class ProbitRegression(Model):
             q += mhat**2 * np.mean(self.data_model._UTPhiPhiTU * self.data_model.spec_Omega/(self.lamb + Vhat * self.data_model.spec_Omega)**2)
 
             m = mhat/np.sqrt(self.data_model.gamma) * np.mean(self.data_model._UTPhiPhiTU/(self.lamb + Vhat * self.data_model.spec_Omega))
-
         return V, q, m
 
     def _update_hatoverlaps(self, V, q, m):
@@ -88,15 +85,24 @@ class ProbitRegression(Model):
 
     def update_se(self, V, q, m):
         Vhat, qhat, mhat = self._update_hatoverlaps(V, q, m)
-        V, q, m = self._update_overlaps(Vhat, qhat, mhat)
-        return V, q, m
+        return self._update_overlaps(Vhat, qhat, mhat)
 
     def get_test_error(self, q, m):
         # NOTE : Changed Delta -> effective_Delta to take into account the GCM
         return np.arccos(m/np.sqrt(q * (self.data_model.rho + self.effective_Delta)))/np.pi
 
     def get_test_loss(self, q, m):
-        return -1.0
+        Sigma = np.array([
+            [self.data_model.rho + self.effective_Delta, m],
+            [m, q]
+        ])
+
+        def loss_integrand(lf_teacher, lf_erm):
+            return np.log(1. + np.exp(- np.sign(lf_teacher) * lf_erm)) * stats.multivariate_normal.pdf([lf_teacher, lf_erm], mean=np.zeros(2), cov=Sigma)
+        
+        ranges = [(-10.0, 10.0), (-10.0, 10.0)]
+        lossg_mle = scipy.integrate.nquad(loss_integrand, ranges)[0]
+        return lossg_mle
     
     def get_calibration(self, q, m, p=0.75):
         return -1.0
