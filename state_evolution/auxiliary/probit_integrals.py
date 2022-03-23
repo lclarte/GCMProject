@@ -16,6 +16,7 @@ def cdf(x):
 
 def loss(z):
     # NOTE : This is the main change compared to logistic_integrals.py
+    # z increases => loss decreases as expected
     return - np.log(cdf(z))
 
 def moreau_loss(x, y, omega,V):

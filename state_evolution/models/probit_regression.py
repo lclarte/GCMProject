@@ -88,7 +88,8 @@ class ProbitRegression(Model):
 
     def update_se(self, V, q, m):
         Vhat, qhat, mhat = self._update_hatoverlaps(V, q, m)
-        return self._update_overlaps(Vhat, qhat, mhat)
+        V, q, m = self._update_overlaps(Vhat, qhat, mhat)
+        return V, q, m
 
     def get_test_error(self, q, m):
         # NOTE : Changed Delta -> effective_Delta to take into account the GCM
