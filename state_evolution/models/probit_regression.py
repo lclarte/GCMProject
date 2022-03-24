@@ -4,7 +4,7 @@ import scipy.stats as stats
 import scipy.integrate
 from scipy.linalg import sqrtm
 from .base_model import Model
-from ..auxiliary.probit_integrals import integrate_for_mhat, integrate_for_mhat_der, integrate_for_Vhat, integrate_for_Qhat, traning_error_probit
+from ..auxiliary.probit_integrals import integrate_for_mhat, integrate_for_Vhat, integrate_for_Qhat, traning_error_probit
 
 def sigmoid(x):
     return 1. / (1. + np.exp(-x))
@@ -39,7 +39,7 @@ class ProbitRegression(Model):
         self.mismatch_noise_var = np.trace(self.Psi - self.Phi @ Omega_inv @ self.Phi.T) / self.teacher_size
         
         # NOTE : Don't add Delta in the data_model because the noise is not a property of the data but of the teacher
-        # Delta = Sigma**2 
+        # Delta = Sigma**2
         self.Delta = Delta
         self.effective_Delta = Delta + self.mismatch_noise_var
         self.rho = self.data_model.rho
@@ -53,6 +53,7 @@ class ProbitRegression(Model):
         return info
 
     def _update_overlaps(self, Vhat, qhat, mhat):
+        """
         # should not be affected by the noise level
         V = np.mean(self.data_model.spec_Omega/(self.lamb + Vhat * self.data_model.spec_Omega))
 
@@ -68,6 +69,13 @@ class ProbitRegression(Model):
             q += mhat**2 * np.mean(self.data_model._UTPhiPhiTU * self.data_model.spec_Omega/(self.lamb + Vhat * self.data_model.spec_Omega)**2)
 
             m = mhat/np.sqrt(self.data_model.gamma) * np.mean(self.data_model._UTPhiPhiTU/(self.lamb + Vhat * self.data_model.spec_Omega))
+        
+        """
+        
+        V = 1 / (self.lamb + Vhat)
+        q = (mhat**2 + qhat) / (self.lamb + Vhat)**2
+        m = mhat / (self.lamb + Vhat)
+        
         return V, q, m
 
     def _update_hatoverlaps(self, V, q, m):
@@ -85,7 +93,8 @@ class ProbitRegression(Model):
 
     def update_se(self, V, q, m):
         Vhat, qhat, mhat = self._update_hatoverlaps(V, q, m)
-        return self._update_overlaps(Vhat, qhat, mhat)
+        V, q, m = self._update_overlaps(Vhat, qhat, mhat)
+        return V, q, m
 
     def get_test_error(self, q, m):
         # NOTE : Changed Delta -> effective_Delta to take into account the GCM

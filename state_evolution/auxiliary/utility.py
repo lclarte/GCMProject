@@ -2,7 +2,7 @@ from typing import List
 import numpy as np
 import scipy.optimize as opt4
 from scipy.optimize import minimize_scalar, root_scalar
-from scipy.special import erf, erfc
+from scipy.special import erf, erfc, erfcx
 from scipy.linalg import sqrtm
 from datetime import datetime
 
@@ -11,6 +11,12 @@ sigmoid_inv = np.vectorize(lambda y : np.log(y/(1-y)))
 
 erf_prime = np.vectorize(lambda x : 2. / np.sqrt(np.pi) * np.exp(-x**2))
 erfc_prime = np.vectorize(lambda x : -2. / np.sqrt(np.pi) * np.exp(-x**2))
+
+def logerfc(x): 
+    if x > 0.0:
+        return np.log(erfcx(x)) - x**2
+    else:
+        return np.log(erfc(x))
 
 bernoulli_variance = np.vectorize(lambda p : 4 * p * (1. - p))
 

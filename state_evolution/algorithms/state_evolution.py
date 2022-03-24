@@ -46,7 +46,6 @@ class StateEvolution(object):
             self.overlaps['self_overlap'][0] = 0.999
             self.overlaps['teacher_student'][0] = 0.999
 
-
     def _get_diff(self, t):
         '''
         Compute differencial between step t+1 and t.
@@ -124,6 +123,7 @@ class StateEvolution(object):
                                                         self.overlaps['self_overlap'][-1],
                                                         self.overlaps['teacher_student'][-1])
         except Exception as e:
+            print(e)
             print('Implemented only for logistic regression and BO')
 
     def get_info(self):
