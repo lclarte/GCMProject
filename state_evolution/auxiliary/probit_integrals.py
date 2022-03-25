@@ -34,6 +34,13 @@ def moreau_prime(x, y, omega, V):
         ratio = (gaussian(x) / cdf(x * y))
     return (x - omega) / V - y * ratio
 
+def rescaled_moreau_prime(x, y, omega, V):
+    if x * y < threshold:
+        ratio = - x * y
+    else:
+        ratio = (gaussian(x) / cdf(x * y))
+    return (x - omega) - y * ratio * V
+
 def moreau_second(x, y, omega, V):
     if x * y < threshold:
         return 1. / V + 1
@@ -42,11 +49,10 @@ def moreau_second(x, y, omega, V):
     return 1. / V + y * ( x * ratio + y * ratio**2)
 
 def proximal(y, omega, V):
-    return root_scalar(
-        lambda x : moreau_prime(x, y, omega, V),
-        x0 = omega,
-        fprime = lambda x : moreau_second(x, y, omega, V)
-    ).root
+
+    root = root_scalar(
+                lambda x : rescaled_moreau_prime(x, y, omega, V), bracket=[-1e20, 1e20], xtol=1e-15).root
+    return root
 
 def f_mhat_plus(ξ, M, Q, V, Vstar):
     ω = np.sqrt(Q)*ξ
