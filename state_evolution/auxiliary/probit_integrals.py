@@ -58,91 +58,6 @@ def proximal(y, omega, V):
                 lambda x : rescaled_moreau_prime(x, y, omega, V), bracket=[-1e20, 1e20], xtol=1e-15).root
     return root
 
-def f_mhat_plus(ξ, M, Q, V, Vstar):
-    ω = np.sqrt(Q)*ξ
-    ωstar = (M/np.sqrt(Q))*ξ
-    λstar_plus = proximal(1, ω, V)
-    return np.exp(-ωstar**2/(2*Vstar))*(λstar_plus - ω)
-
-def f_mhat_minus(ξ, M, Q, V, Vstar):
-    ω = np.sqrt(Q)*ξ
-    ωstar = (M/np.sqrt(Q))*ξ
-    λstar_minus = λstar_plus = proximal(-1, ω, V)
-    return np.exp(-ωstar**2/(2*Vstar))*(λstar_minus - ω)
-
-def integrate_for_mhat(M, Q, V, Vstar):
-    I1 = quad(lambda ξ: f_mhat_plus(ξ, M, Q, V, Vstar) * gaussian(ξ), -int_bounds  , int_bounds  , limit=500)[0]
-    I2 = quad(lambda ξ: f_mhat_minus(ξ, M, Q, V, Vstar) * gaussian(ξ), -int_bounds  , int_bounds  , limit=500)[0]
-    return (I1 - I2) * (1/np.sqrt(2*np.pi*Vstar))
-
-# Vhat_x #
-def f_Vhat_plus(ξ, M, Q, V, Vstar):
-    ω = np.sqrt(Q)*ξ
-    ωstar = (M/np.sqrt(Q))*ξ
-    λstar_plus = proximal(1, ω, V)
-    return (1/(1/V + (1/4) * (1/np.cosh(λstar_plus/2)**2))) * (1 + erf(ωstar/np.sqrt(2*Vstar)))
-
-def f_Vhat_minus(ξ, M, Q, V, Vstar):
-    ω = np.sqrt(Q)*ξ
-    ωstar = (M/np.sqrt(Q))*ξ
-    λstar_minus = proximal(-1, ω, V)
-    return (1/(1/V + (1/4) * (1/np.cosh(-λstar_minus/2)**2))) * (1 - erf(ωstar/np.sqrt(2*Vstar)))
-    
-def integrate_for_Vhat(M, Q, V, Vstar):
-    I1 = quad(lambda ξ: f_Vhat_plus(ξ, M, Q, V, Vstar) * gaussian(ξ), -int_bounds  , int_bounds  , limit=500)[0]
-    I2 = quad(lambda ξ: f_Vhat_minus(ξ, M, Q, V, Vstar) * gaussian(ξ), -int_bounds  , int_bounds  , limit=500)[0]
-    return (1/2) * (I1 + I2)
-
-# Qhat_x#
-def f_qhat_plus(ξ, M, Q, V, Vstar):
-    ω = np.sqrt(Q)*ξ
-    ωstar = (M/np.sqrt(Q))*ξ
-    λstar_plus = proximal(1, ω, V)
-    return (1 + erf(ωstar/np.sqrt(2*Vstar))) * (λstar_plus - ω)**2
-
-def f_qhat_minus(ξ, M, Q, V, Vstar):
-    ω = np.sqrt(Q)*ξ
-    ωstar = (M/np.sqrt(Q))*ξ
-    λstar_minus = proximal(-1, ω, V)
-    return (1 - erf(ωstar/np.sqrt(2*Vstar))) * (λstar_minus - ω)**2
-
-def integrate_for_Qhat(M, Q, V, Vstar):
-    I1 = quad(lambda ξ: f_qhat_plus(ξ, M, Q, V, Vstar) * gaussian(ξ), -int_bounds  , int_bounds  , limit=500)[0]
-    I2 = quad(lambda ξ: f_qhat_minus(ξ, M, Q, V, Vstar)* gaussian(ξ), -int_bounds  , int_bounds  , limit=500)[0]
-    return (1/2) * (I1 + I2)
-
-def Integrand_training_error_plus_probit(ξ, M, Q, V, Vstar):
-    ω = np.sqrt(Q)*ξ
-    ωstar = (M/np.sqrt(Q))*ξ
-#     λstar_plus = np.float(mpmath.findroot(lambda λstar_plus: λstar_plus - ω - V/(1 + np.exp(np.float(λstar_plus))), 10e-10))
-    λstar_plus = proximal(1, ω, V)
-    
-    l_plus = loss(λstar_plus)
-    
-    return (1 + erf(ωstar/np.sqrt(2*Vstar))) * l_plus
-
-def Integrand_training_error_minus_probit(ξ, M, Q, V, Vstar):
-    ω = np.sqrt(Q)*ξ
-    ωstar = (M/np.sqrt(Q))*ξ
-#   λstar_minus = np.float(mpmath.findroot(lambda λstar_minus: λstar_minus - ω + V/(1 + np.exp(-np.float(λstar_minus))), 10e-10))
-    λstar_minus = proximal(-1, ω, V)
-    
-    l_minus = loss(-λstar_minus)
-
-    return (1 - erf(ωstar/np.sqrt(2*Vstar))) * l_minus
-
-def traning_error_probit(M, Q, V, Vstar):
-    I1 = quad(lambda ξ: Integrand_training_error_plus_probit(ξ, M, Q, V, Vstar) * gaussian(ξ), -int_bounds  , int_bounds  , limit=500)[0]
-    I2 = quad(lambda ξ: Integrand_training_error_minus_probit(ξ, M, Q, V, Vstar) * gaussian(ξ), -int_bounds  , int_bounds  , limit=500)[0]
-    return (1/2)*(I1 + I2)
-
-def traning_error_probit(M, Q, V, Vstar):
-    I1 = quad(lambda ξ: Integrand_training_error_plus_probit(ξ, M, Q, V, Vstar) * gaussian(ξ), -int_bounds  , int_bounds  , limit=500)[0]
-    I2 = quad(lambda ξ: Integrand_training_error_minus_probit(ξ, M, Q, V, Vstar) * gaussian(ξ), -int_bounds  , int_bounds  , limit=500)[0]
-    return (1/2)*(I1 + I2)
-
-# === NEW FUNCTIONS FOR STATE EVOLUTION 
-
 # Define helper functions (partition functions and so on ...)
 
 def find_star(y, omega, V):
@@ -224,3 +139,24 @@ def SP_V_hat_arg(xi, y, M, Q, V, Vstar):
     
     _, _, dfout = fout_dfout(y, omega, V)
     return gaussian(xi, 0, 1) * Zout_0(y, omega_0, Vstar) * dfout
+
+def Integrand_training_error_plus_probit(ξ, M, Q, V, Vstar):
+    ω = np.sqrt(Q)*ξ
+    ωstar = (M/np.sqrt(Q))*ξ
+#     λstar_plus = np.float(mpmath.findroot(lambda λstar_plus: λstar_plus - ω - V/(1 + np.exp(np.float(λstar_plus))), 10e-10))
+    λstar_plus = proximal(1, ω, V) 
+    l_plus = loss(λstar_plus) 
+    return (1 + erf(ωstar/np.sqrt(2*Vstar))) * l_plus
+
+def Integrand_training_error_minus_probit(ξ, M, Q, V, Vstar):
+    ω = np.sqrt(Q)*ξ
+    ωstar = (M/np.sqrt(Q))*ξ
+    # λstar_minus = np.float(mpmath.findroot(lambda λstar_minus: λstar_minus - ω + V/(1 + np.exp(-np.float(λstar_minus))), 10e-10))
+    λstar_minus = proximal(-1, ω, V) 
+    l_minus = loss(-λstar_minus)
+    return (1 - erf(ωstar/np.sqrt(2*Vstar))) * l_minus
+
+def training_error_probit(M, Q, V, Vstar):
+    I1 = quad(lambda ξ: Integrand_training_error_plus_probit(ξ, M, Q, V, Vstar) * gaussian(ξ), -int_bounds  , int_bounds  , limit=500)[0]
+    I2 = quad(lambda ξ: Integrand_training_error_minus_probit(ξ, M, Q, V, Vstar) * gaussian(ξ), -int_bounds  , int_bounds  , limit=500)[0]
+    return (1/2)*(I1 + I2)

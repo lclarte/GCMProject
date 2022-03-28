@@ -4,7 +4,7 @@ import scipy.stats as stats
 import scipy.integrate
 from scipy.linalg import sqrtm
 from .base_model import Model
-from ..auxiliary.probit_integrals import integrate_for_mhat, integrate_for_Vhat, integrate_for_Qhat, traning_error_probit
+# from ..auxiliary.probit_integrals import training_error_probit
 from ..auxiliary.probit_integrals import SP_V_hat, SP_q_hat, SP_m_hat
 
 
@@ -55,6 +55,9 @@ class ProbitRegression(Model):
         return info
 
     def _update_overlaps(self, Vhat, qhat, mhat):
+        """
+        NOTE : For now, only works for the base model psi = omega = phi = identity
+        """
         V = 1 / (self.lamb + Vhat)
         q = (mhat**2 + qhat) / (self.lamb + Vhat)**2
         m = mhat / (self.lamb + Vhat)
@@ -64,9 +67,9 @@ class ProbitRegression(Model):
     def _update_hatoverlaps(self, V, q, m):
         Vstar = self.data_model.rho - m**2/q
 
-        mhat = self.alpha * SP_m_hat(m, q, V, Vstar)
-        qhat = self.alpha * SP_q_hat(m, q, V, Vstar)
-        Vhat = self.alpha * SP_V_hat(m, q, V, Vstar)
+        mhat = self.alpha * SP_m_hat(m, q, V, Vstar + self.Delta)
+        qhat = self.alpha * SP_q_hat(m, q, V, Vstar + self.Delta)
+        Vhat = self.alpha * SP_V_hat(m, q, V, Vstar + self.Delta)
     
         return Vhat, qhat, mhat
 
