@@ -4,8 +4,7 @@ import scipy.stats as stats
 import scipy.integrate
 from scipy.linalg import sqrtm
 from .base_model import Model
-# from ..auxiliary.probit_integrals import training_error_probit
-from ..auxiliary.probit_integrals import SP_V_hat, SP_q_hat, SP_m_hat
+from ..auxiliary.probit_integrals import SP_V_hat, SP_q_hat, SP_m_hat, traning_error_probit
 
 
 def sigmoid(x):
@@ -55,13 +54,25 @@ class ProbitRegression(Model):
         return info
 
     def _update_overlaps(self, Vhat, qhat, mhat):
-        """
+        """ 
         NOTE : For now, only works for the base model psi = omega = phi = identity
         """
-        V = 1 / (self.lamb + Vhat)
-        q = (mhat**2 + qhat) / (self.lamb + Vhat)**2
-        m = mhat / (self.lamb + Vhat)
-        
+        # should not be affected by the noise level
+        V = np.mean(self.data_model.spec_Omega/(self.lamb + Vhat * self.data_model.spec_Omega))
+
+        if self.data_model.commute:
+            q = np.mean((self.data_model.spec_Omega**2 * qhat +
+                                           mhat**2 * self.data_model.spec_Omega * self.data_model.spec_PhiPhit) /
+                                          (self.lamb + Vhat*self.data_model.spec_Omega)**2)
+
+            m = mhat / np.sqrt(self.data_model.gamma) * np.mean(self.data_model.spec_PhiPhit/(self.lamb + Vhat*self.data_model.spec_Omega))
+
+        else:
+            q = qhat * np.mean(self.data_model.spec_Omega**2 / (self.lamb + Vhat*self.data_model.spec_Omega)**2)
+            q += mhat**2 * np.mean(self.data_model._UTPhiPhiTU * self.data_model.spec_Omega/(self.lamb + Vhat * self.data_model.spec_Omega)**2)
+
+            m = mhat/np.sqrt(self.data_model.gamma) * np.mean(self.data_model._UTPhiPhiTU/(self.lamb + Vhat * self.data_model.spec_Omega))
+
         return V, q, m
 
     def _update_hatoverlaps(self, V, q, m):

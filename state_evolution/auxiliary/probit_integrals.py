@@ -156,7 +156,7 @@ def Integrand_training_error_minus_probit(ξ, M, Q, V, Vstar):
     l_minus = loss(-λstar_minus)
     return (1 - erf(ωstar/np.sqrt(2*Vstar))) * l_minus
 
-def training_error_probit(M, Q, V, Vstar):
+def traning_error_probit(M, Q, V, Vstar):
     I1 = quad(lambda ξ: Integrand_training_error_plus_probit(ξ, M, Q, V, Vstar) * gaussian(ξ), -int_bounds  , int_bounds  , limit=500)[0]
     I2 = quad(lambda ξ: Integrand_training_error_minus_probit(ξ, M, Q, V, Vstar) * gaussian(ξ), -int_bounds  , int_bounds  , limit=500)[0]
     return (1/2)*(I1 + I2)
