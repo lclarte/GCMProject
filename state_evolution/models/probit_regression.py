@@ -5,6 +5,8 @@ import scipy.integrate
 from scipy.linalg import sqrtm
 from .base_model import Model
 from ..auxiliary.probit_integrals import integrate_for_mhat, integrate_for_Vhat, integrate_for_Qhat, traning_error_probit
+from ..auxiliary.probit_integrals import SP_V_hat, SP_q_hat, SP_m_hat
+
 
 def sigmoid(x):
     return 1. / (1. + np.exp(-x))
@@ -53,25 +55,6 @@ class ProbitRegression(Model):
         return info
 
     def _update_overlaps(self, Vhat, qhat, mhat):
-        """
-        # should not be affected by the noise level
-        V = np.mean(self.data_model.spec_Omega/(self.lamb + Vhat * self.data_model.spec_Omega))
-
-        if self.data_model.commute:
-            q = np.mean((self.data_model.spec_Omega**2 * qhat +
-                                           mhat**2 * self.data_model.spec_Omega * self.data_model.spec_PhiPhit) /
-                                          (self.lamb + Vhat*self.data_model.spec_Omega)**2)
-
-            m = mhat / np.sqrt(self.data_model.gamma) * np.mean(self.data_model.spec_PhiPhit/(self.lamb + Vhat*self.data_model.spec_Omega))
-
-        else:
-            q = qhat * np.mean(self.data_model.spec_Omega**2 / (self.lamb + Vhat*self.data_model.spec_Omega)**2)
-            q += mhat**2 * np.mean(self.data_model._UTPhiPhiTU * self.data_model.spec_Omega/(self.lamb + Vhat * self.data_model.spec_Omega)**2)
-
-            m = mhat/np.sqrt(self.data_model.gamma) * np.mean(self.data_model._UTPhiPhiTU/(self.lamb + Vhat * self.data_model.spec_Omega))
-        
-        """
-        
         V = 1 / (self.lamb + Vhat)
         q = (mhat**2 + qhat) / (self.lamb + Vhat)**2
         m = mhat / (self.lamb + Vhat)
@@ -81,14 +64,10 @@ class ProbitRegression(Model):
     def _update_hatoverlaps(self, V, q, m):
         Vstar = self.data_model.rho - m**2/q
 
-        Im = integrate_for_mhat(m, q, V, Vstar + self.Delta)
-        Iv = integrate_for_Vhat(m, q, V, Vstar + self.Delta)
-        Iq = integrate_for_Qhat(m, q, V, Vstar + self.Delta)
-
-        mhat = self.alpha/np.sqrt(self.data_model.gamma) * Im/V
-        Vhat = self.alpha * ((1/V) - (1/V**2) * Iv)
-        qhat = self.alpha * Iq/V**2
-
+        mhat = self.alpha * SP_m_hat(m, q, V, Vstar)
+        qhat = self.alpha * SP_q_hat(m, q, V, Vstar)
+        Vhat = self.alpha * SP_V_hat(m, q, V, Vstar)
+    
         return Vhat, qhat, mhat
 
     def update_se(self, V, q, m):
