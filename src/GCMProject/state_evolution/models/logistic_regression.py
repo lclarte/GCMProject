@@ -112,5 +112,87 @@ class LogisticRegression(Model):
         return p - 0.5 * erfc(- (m / q * inv_p) / np.sqrt(2*(rho - m**2 / q + self.effective_Delta)))
 
     def get_train_loss(self, V, q, m):
+        # TODO : Remplacer effective_Delta par Delta ? 
         Vstar = self.data_model.rho - m**2/q
         return traning_error_logistic(m, q, V, Vstar + self.effective_Delta)
+
+class LogisticRegressionKappa(Model):
+    # NOTE : Ne marche pas 
+    def __init__(self, Delta = 0., *, sample_complexity, gamma, regularisation, kappa_star, kappa1):
+        self.alpha = sample_complexity
+        self.gamma = gamma
+        self.lambda_ = regularisation
+
+        self.kappa_star = kappa_star
+        self.kappa1     = kappa1
+         
+        self.Delta = Delta
+        self.rho   = 1.0
+
+    def get_info(self):
+        info = {
+            'model': 'logistic_regression',
+            'sample_complexity': self.alpha,
+            'lambda': self.lamb,
+        }
+        return info
+
+    def integrate_for_qvm(self, qhat,mhat,vhat):
+        alpha= 1./ self.gamma
+        gamma = self.gamma
+        sigma= self.kappa1
+        kk = self.kappa_star**2
+        alphap=(sigma*(1+np.sqrt(alpha)))**2
+        alpham=(sigma*(1-np.sqrt(alpha)))**2
+        lamb = self.lambda_
+
+        if lamb==0:
+            den =1+kk*vhat
+            aux =np.sqrt(((alphap+kk)*vhat+1)*((alpham+kk)*vhat+1))
+            aux2=np.sqrt(((alphap+kk)*vhat+1)/((alpham+kk)*vhat+1))
+            IV = ((kk*vhat+1)*((alphap+alpham)*vhat+2)-2*kk*vhat**2*np.sqrt(alphap*alpham)-2*aux)/(4*alpha*vhat**2*(kk*vhat+1)*sigma**2)
+            IV = IV + max(0,1-gamma)*kk/(1+vhat*kk)
+            I1= (alphap*vhat*(-3*den+aux)+4*den*(-den+aux)+alpham*vhat*(-2*alphap*vhat-3*den+aux))/(4*alpha*vhat**3*sigma**2*aux)
+            I2= (alphap*vhat+alpham*vhat*(1-2*aux2)+2*den*(1-aux2))/(4*alpha*vhat**2*aux*sigma**2)
+            I3= (2*vhat*alphap*alpham+(alphap+alpham)*den-2*np.sqrt(alphap*alpham)*aux)/(4*alpha*den**2*sigma**2*aux)
+            IQ = (qhat+mhat**2)*I1+(2*qhat+mhat**2)*kk*I2+qhat*kk**2*I3
+            IQ = IQ + max(0,1-gamma)*qhat*kk**2/den**2
+            IM = ((alpham+alphap+2*kk)*vhat+2-2*aux)/(4*alpha*vhat**2*sigma**2)
+        else:
+            den =lamb+kk*vhat
+            aux =np.sqrt(((alphap+kk)*vhat+lamb)*((alpham+kk)*vhat+lamb))
+            aux2=np.sqrt(((alphap+kk)*vhat+lamb)/((alpham+kk)*vhat+lamb))
+            IV = ((kk*vhat+lamb)*((alphap+alpham)*vhat+2*lamb)-2*kk*vhat**2*np.sqrt(alphap*alpham)-2*lamb*aux)/(4*alpha*vhat**2*(kk*vhat+lamb)*sigma**2)
+            IV = IV + max(0,1-gamma)*kk/(lamb+vhat*kk)
+            I1= (alphap*vhat*(-3*den+aux)+4*den*(-den+aux)+alpham*vhat*(-2*alphap*vhat-3*den+aux))/(4*alpha*vhat**3*sigma**2*aux)
+            I2= (alphap*vhat+alpham*vhat*(1-2*aux2)+2*den*(1-aux2))/(4*alpha*vhat**2*aux*sigma**2)
+            I3= (2*vhat*alphap*alpham+(alphap+alpham)*den-2*np.sqrt(alphap*alpham)*aux)/(4*alpha*den**2*sigma**2*aux)
+            IQ = (qhat+mhat**2)*I1+(2*qhat+mhat**2)*kk*I2+qhat*kk**2*I3
+            IQ = IQ + max(0,1-gamma)*qhat*kk**2/den**2
+            IM = ((alpham+alphap+2*kk)*vhat+2*lamb-2*aux)/(4*alpha*vhat**2*sigma**2)
+        return IV, IQ, IM
+
+    def update_hat(self, q, m, v):
+        sigma=self.rho-m**2/q
+        
+        Im = integrate_for_mhat(m, q, v, sigma + self.Delta)
+        Iv = integrate_for_Vhat(m, q, v, sigma + self.Delta)
+        Iq = integrate_for_Qhat(m, q, v, sigma + self.Delta)
+            
+        mhat = self.alpha / np.sqrt(self.gamma*self.rho) * Im
+        vhat = -self.alpha * Iv
+        qhat = self.alpha * Iq
+        
+        return qhat, mhat, vhat
+
+    def update_overlaps(self, qhat, mhat, vhat):
+        IV, IQ, IM = self.integrate_for_qvm(qhat,mhat,vhat)
+        v = IV
+        m = mhat/np.sqrt(self.gamma)* IM
+        q= IQ
+        
+        return q, m, v
+
+    def update_se(self, V, q, m):
+        Vhat, qhat, mhat = self.update_hat(q, m, V)
+        return self.update_overlaps(qhat, mhat, Vhat)

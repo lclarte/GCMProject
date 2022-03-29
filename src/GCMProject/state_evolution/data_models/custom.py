@@ -22,11 +22,14 @@ class Custom(DataModel):
         # NOTE : Here, k = teacher size, p = student size (normalement)
         self.gamma = self.k / self.p
         
-        self.PhiPhiT = (self.Phi @ self.theta.reshape(self.k,1) @ 
-                        self.theta.reshape(1,self.k) @ self.Phi.T)
+        # old 
+        # self.PhiPhiT = (self.Phi @ self.theta.reshape(self.k,1) @ 
+        #                 self.theta.reshape(1,self.k) @ self.Phi.T)
+        self.PhiPhiT = (self.Phi @ self.Phi.T)
         
         # NOTE : Old version of the code, relies on sampling theta
-        self.rho = self.theta.dot(self.Psi @ self.theta) / self.k
+        # old : self.rho = self.theta.dot(self.Psi @ self.theta) / self.k
+        self.rho = np.trace(self.Psi) / self.k
 
         self._check_sym()
         self._diagonalise() # see base_data_model
