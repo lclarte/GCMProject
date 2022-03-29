@@ -43,7 +43,9 @@ class ProbitRegression(Model):
         # Delta = Sigma**2
         self.Delta = Delta
         self.effective_Delta = Delta + self.mismatch_noise_var
-        self.rho = self.data_model.rho
+        # old
+        # self.rho = self.data_model.rho
+        self.rho = np.trace(self.Psi) / self.teacher_size
         
     def get_info(self):
         info = {
@@ -76,7 +78,7 @@ class ProbitRegression(Model):
         return V, q, m
 
     def _update_hatoverlaps(self, V, q, m):
-        Vstar = self.data_model.rho - m**2/q
+        Vstar = self.rho - m**2/q
 
         mhat = self.alpha * SP_m_hat(m, q, V, Vstar + self.Delta)
         qhat = self.alpha * SP_q_hat(m, q, V, Vstar + self.Delta)
@@ -91,11 +93,11 @@ class ProbitRegression(Model):
 
     def get_test_error(self, q, m):
         # NOTE : Changed Delta -> effective_Delta to take into account the GCM
-        return np.arccos(m/np.sqrt(q * (self.data_model.rho + self.effective_Delta)))/np.pi
+        return np.arccos(m/np.sqrt(q * (self.rho + self.effective_Delta)))/np.pi
 
     def get_test_loss(self, q, m):
         Sigma = np.array([
-            [self.data_model.rho + self.effective_Delta, m],
+            [self.rho + self.effective_Delta, m],
             [m, q]
         ])
 
@@ -110,5 +112,5 @@ class ProbitRegression(Model):
         return -1.0
 
     def get_train_loss(self, V, q, m):
-        Vstar = self.data_model.rho - m**2/q
+        Vstar = self.rho - m**2/q
         return traning_error_probit(m, q, V, Vstar + self.effective_Delta)

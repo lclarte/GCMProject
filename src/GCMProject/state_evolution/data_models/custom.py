@@ -27,8 +27,6 @@ class Custom(DataModel):
         
         # NOTE : Old version of the code, relies on sampling theta
         self.rho = self.theta.dot(self.Psi @ self.theta) / self.k
-        # NOTE : Currently Only works if the data covariances are identity
-        self.limit_rho = np.trace(self.Phi.T @ self.Phi) / self.k
 
         self._check_sym()
         self._diagonalise() # see base_data_model
