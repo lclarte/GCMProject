@@ -21,30 +21,32 @@ class BayesOptimalProbit(Model):
     See base_model for details on modules.
     TODO : Ajouter une option pour fixer manuellement le bruit du au mismath du modèle 
     (il faut probablement le calculer AVANT le changement de variable)
+    NOTE : Assume for now that Omega is the identity covariance
     '''
     def __init__(self, Delta = 0., *, sample_complexity, data_model):
         """
         arguments: 
             - Delta : variance of the noise 
         """
+
         self.alpha = sample_complexity
     
         self.data_model = data_model
 
         # Do a transformation of the matrices to simplify
-        self.teacher_size = data_model.k
-        self.student_size = data_model.p
+        self.teacher_size = len(data_model.Psi)
+        self.student_size = len(data_model.Omega)
 
         self.Psi       = data_model.Psi
         self.Omega     = data_model.Omega
+
+        if np.linalg.norm(data_model.Omega - np.eye(self.student_size)) > 1e-10:
+            raise Exception()
         # transpose data_model.Phi because it's transposed in the definition of the Custom data model class
         self.Phi       = data_model.Phi.T
-
-        Omega_inv      = np.linalg.inv(data_model.Omega)
-        Omega_inv_sqrt = np.real(sqrtm(Omega_inv))
         
         # New covariance of the teacher (granted the teacher has identity covariance)
-        self.cov       = Omega_inv_sqrt @ self.Phi.T @ self.Phi @ Omega_inv_sqrt
+        self.cov       = self.Phi.T @ self.Phi
 
         # SETTING THE NOISE 
         
@@ -52,7 +54,7 @@ class BayesOptimalProbit(Model):
         self.Delta      = Delta
         # Effective noise is due to the mismatch in the models.
         # Should appear only in the update of the hat overlaps normally
-        self.mismatch_noise_var = np.trace(self.Psi - self.Phi @ Omega_inv @ self.Phi.T) / self.teacher_size
+        self.mismatch_noise_var = np.trace(self.Psi - self.Phi @ self.Phi.T) / self.teacher_size
         self.effective_Delta = Delta + self.mismatch_noise_var
 
     def get_info(self):

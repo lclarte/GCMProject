@@ -91,11 +91,9 @@ class StateEvolution(object):
                 self.status = 1
                 break
 
-            """
             if self.overlaps['self_overlap'][t+1] > 1000.0:
                 self.status = 1
                 break
-            """
             
         if t == self.max_steps-1:
             # If iterations didn't converge, set status = -1
