@@ -23,13 +23,14 @@ class BayesOptimalProbit(Model):
     (il faut probablement le calculer AVANT le changement de variable)
     NOTE : Assume for now that Omega is the identity covariance
     '''
-    def __init__(self, Delta = 0., *, sample_complexity, data_model):
+    def __init__(self, Delta = 0., *, sample_complexity, data_model, student_teacher_size_ratio):
         """
         arguments: 
             - Delta : variance of the noise 
         """
 
         self.alpha = sample_complexity
+        self.gamma = student_teacher_size_ratio
     
         self.data_model = data_model
 
@@ -84,7 +85,8 @@ class BayesOptimalProbit(Model):
             return 1/(np.pi * np.sqrt(V + Delta)) * norm.pdf(np.sqrt(2*q + V + Delta) * z) * 1/ utility.probit(np.sqrt(q) * z)
         
         # Bayes optimal => all these quantities are always the same
-        Vhat = mhat = qhat = self.alpha * quad(integrand, -int_lims, int_lims, epsabs=1e-10, epsrel=1e-10, limit=200)[0]
+        # NOTE : Here, alpha = n / p ! and not n / d !! => if we keep the noation nn / d 
+        Vhat = mhat = qhat = (self.alpha / self.gamma) * quad(integrand, -int_lims, int_lims, epsabs=1e-10, epsrel=1e-10, limit=200)[0]
         return Vhat, qhat, mhat
 
     def update_se(self, V, q, m):
