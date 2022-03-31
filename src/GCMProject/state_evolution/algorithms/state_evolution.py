@@ -13,7 +13,7 @@ class StateEvolution(object):
     model: instance of model class. See /models.
     '''
     def __init__(self, initialisation='uninformed', tolerance=1e-10, damping=0,
-                 verbose=False, max_steps=1000, *, model):
+                 verbose=False, max_steps=1000, stop_threshold = 100.0, *, model):
 
         self.max_steps = max_steps
         self.init = initialisation
@@ -21,6 +21,7 @@ class StateEvolution(object):
         self.damping = damping
         self.model = model
         self.verbose = verbose
+        self.stop_threshold = stop_threshold
 
         # Status = 0 at initialisation.
         self.status = 0
@@ -91,8 +92,8 @@ class StateEvolution(object):
                 self.status = 1
                 break
 
-            if self.overlaps['self_overlap'][t+1] > 1000.0:
-                self.status = 1
+            if self.overlaps['self_overlap'][t+1] > self.stop_threshold:
+                self.status = 2
                 break
             
         if t == self.max_steps-1:
@@ -107,6 +108,7 @@ class StateEvolution(object):
         self.overlaps['variance'] = self.overlaps['variance'][:t+1]
         self.overlaps['self_overlap'] = self.overlaps['self_overlap'][:t+1]
         self.overlaps['teacher_student'] = self.overlaps['teacher_student'][:t+1]
+        self.overlaps['teacher_teacher'] = self.model.rho
 
         self.test_error = self.model.get_test_error(self.overlaps['self_overlap'][-1],
                                                     self.overlaps['teacher_student'][-1])
@@ -141,7 +143,8 @@ class StateEvolution(object):
                 'overlaps': {
                     'variance': self.overlaps['variance'][-1],
                     'self_overlap': self.overlaps['self_overlap'][-1],
-                    'teacher_student': self.overlaps['teacher_student'][-1]
+                    'teacher_student': self.overlaps['teacher_student'][-1],
+                    'teacher_teacher': self.overlaps['teacher_teacher']
                 }
             })
             info.update({

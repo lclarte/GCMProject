@@ -33,6 +33,7 @@ class BayesOptimalProbit(Model):
         self.gamma = student_teacher_size_ratio
     
         self.data_model = data_model
+        self.rho = self.data_model.rho
 
         # Do a transformation of the matrices to simplify
         self.teacher_size = len(data_model.Psi)
