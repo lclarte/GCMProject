@@ -94,9 +94,9 @@ class BayesOptimalProbit(Model):
         Vhat, qhat, mhat = self._update_hatoverlaps(V, q, m)
         return self._update_overlaps(Vhat, qhat, mhat)
 
-    # NOTE : La forme de la test loss pour Bayes Optimal et la regression logistique devrait être la même
     def get_test_error(self, q, m):
-        return np.arccos(m/np.sqrt(q * (self.data_model.rho + self.effective_Delta)))/np.pi
+        # NOTE : Removed the noise to be like the GCM Project
+        return np.arccos(m/np.sqrt(q * self.data_model.rho))/np.pi
 
     def get_test_loss(self, q, m):
         return - 1.0

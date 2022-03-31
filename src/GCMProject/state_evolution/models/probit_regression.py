@@ -92,8 +92,8 @@ class ProbitRegression(Model):
         return V, q, m
 
     def get_test_error(self, q, m):
-        # NOTE : Changed Delta -> effective_Delta to take into account the GCM
-        return np.arccos(m/np.sqrt(q * (self.rho + self.effective_Delta)))/np.pi
+        # NOTE : Removed the noise to be like the GCM Project
+        return np.arccos(m/np.sqrt(q * self.data_model.rho))/np.pi
 
     def get_test_loss(self, q, m):
         Sigma = np.array([

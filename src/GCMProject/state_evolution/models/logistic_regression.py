@@ -89,8 +89,8 @@ class LogisticRegression(Model):
         return self._update_overlaps(Vhat, qhat, mhat)
 
     def get_test_error(self, q, m):
-        # NOTE : Changed Delta -> effective_Delta to take into account the GCM
-        return np.arccos(m/np.sqrt(q * (self.data_model.rho + self.effective_Delta)))/np.pi
+        # NOTE : Removed the noise to be like the GCM Project
+        return np.arccos(m/np.sqrt(q * self.data_model.rho))/np.pi
 
     def get_test_loss(self, q, m):
         Sigma = np.array([
@@ -117,6 +117,10 @@ class LogisticRegression(Model):
         return traning_error_logistic(m, q, V, Vstar + self.effective_Delta)
 
 class LogisticRegressionKappa(Model):
+    """
+    NOTE : In this class, d = dimension = size of the teacher, while p = parameters = size of the student
+    Assumes that the teacher covariance is identity
+    """
     # NOTE : Ne marche pas 
     def __init__(self, Delta = 0., *, sample_complexity, gamma, regularisation, kappa_star, kappa1):
         self.alpha = sample_complexity
@@ -138,7 +142,7 @@ class LogisticRegressionKappa(Model):
         return info
 
     def integrate_for_qvm(self, qhat,mhat,vhat):
-        alpha= 1./ self.gamma
+        alpha = self.alpha
         gamma = self.gamma
         sigma= self.kappa1
         kk = self.kappa_star**2
