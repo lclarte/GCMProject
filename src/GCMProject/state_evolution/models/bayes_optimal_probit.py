@@ -74,7 +74,10 @@ class BayesOptimalProbit(Model):
             qhat * self.cov @ (self.cov - self.cov @ woodbury_inverse @ self.cov)
         )
         m = q
+        # NOTE : SE will match the computation of AMP if we take this variance. Note that
+        # Psi does NOT appear in this variance, which is a difference with the GCM paper ... 
         V = np.trace(self.cov) / self.teacher_size - q
+        # V = self.rho - q
 
         return V, q, m
 
@@ -96,7 +99,7 @@ class BayesOptimalProbit(Model):
 
     def get_test_error(self, q, m):
         # NOTE : Removed the noise to be like the GCM Project
-        return np.arccos(m/np.sqrt(q * self.data_model.rho))/np.pi
+        return np.arccos(m/np.sqrt(q * self.rho))/np.pi
 
     def get_test_loss(self, q, m):
         return - 1.0
