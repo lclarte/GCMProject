@@ -29,6 +29,7 @@ class Custom(DataModel):
         
         # NOTE : Old version of the code, relies on sampling theta
         # old : self.rho = self.theta.dot(self.Psi @ self.theta) / self.k
+        # NOTE : Here, rho is the trace of Psi, so it already includes the noise due to the mismatch of the model !!! 
         self.rho = np.trace(self.Psi) / self.k
 
         self._check_sym()

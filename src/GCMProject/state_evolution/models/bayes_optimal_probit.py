@@ -90,7 +90,7 @@ class BayesOptimalProbit(Model):
         
         # Bayes optimal => all these quantities are always the same
         # NOTE : Here, alpha = n / p ! and not n / d !! => if we keep the noation nn / d 
-        Vhat = mhat = qhat = (self.alpha / self.gamma) * quad(integrand, -int_lims, int_lims, epsabs=1e-10, epsrel=1e-10, limit=200)[0]
+        Vhat = mhat = qhat = (self.alpha * self.gamma) * quad(integrand, -int_lims, int_lims, epsabs=1e-10, epsrel=1e-10, limit=200)[0]
         return Vhat, qhat, mhat
 
     def update_se(self, V, q, m):
