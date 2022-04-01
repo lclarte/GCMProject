@@ -19,9 +19,9 @@ class BayesOptimalProbit(Model):
     '''
     Implements updates for logistic regression task.
     See base_model for details on modules.
-    TODO : Ajouter une option pour fixer manuellement le bruit du au mismath du modèle 
-    (il faut probablement le calculer AVANT le changement de variable)
     NOTE : Assume for now that Omega is the identity covariance
+    NOTE : Here, rho DOES NOT INCLUDE PSI => DOES NOT INCLUDE THE ADDITIONAL NOISE DUE TO THE MISMATCH OF THE MODEL
+
     '''
     def __init__(self, Delta = 0., *, sample_complexity, data_model, student_teacher_size_ratio):
         """
@@ -33,7 +33,6 @@ class BayesOptimalProbit(Model):
         self.gamma = student_teacher_size_ratio
     
         self.data_model = data_model
-        self.rho = self.data_model.rho
 
         # Do a transformation of the matrices to simplify
         self.teacher_size = len(data_model.Psi)
@@ -49,6 +48,8 @@ class BayesOptimalProbit(Model):
         
         # New covariance of the teacher (granted the teacher has identity covariance)
         self.cov       = self.Phi.T @ self.Phi
+        # NOTE : Here, rho DOES NOT INCLUDE PSI => DOES NOT INCLUDE THE ADDITIONAL NOISE DUE TO THE MISMATCH OF THE MODEL
+        self.rho = np.trace(self.cov) / self.teacher_size
 
         # SETTING THE NOISE 
         
@@ -76,7 +77,7 @@ class BayesOptimalProbit(Model):
         m = q
         # NOTE : SE will match the computation of AMP if we take this variance. Note that
         # Psi does NOT appear in this variance, which is a difference with the GCM paper ... 
-        V = np.trace(self.cov) / self.teacher_size - q
+        V = self.rho - q
         # V = self.rho - q
 
         return V, q, m
@@ -99,7 +100,8 @@ class BayesOptimalProbit(Model):
 
     def get_test_error(self, q, m):
         # NOTE : Removed the noise to be like the GCM Project
-        return np.arccos(m/np.sqrt(q * self.rho))/np.pi
+        # We add the noise due to the mismatch because rho does not include it 
+        return np.arccos(m/np.sqrt(q * (self.rho + self.mismatch_noise_var)))/np.pi
 
     def get_test_loss(self, q, m):
         return - 1.0
