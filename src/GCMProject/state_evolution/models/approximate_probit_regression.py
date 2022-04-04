@@ -2,7 +2,6 @@ from math import erfc
 import numpy as np
 import scipy.stats as stats
 import scipy.integrate
-from scipy.linalg import sqrtm
 from .base_model import Model
 from ..auxiliary.approximate_probit_integrals import integrate_for_mhat, integrate_for_Vhat, integrate_for_Qhat, traning_error_logistic
 
@@ -106,12 +105,7 @@ class ApproximateProbitRegression(Model):
         return lossg_mle
     
     def get_calibration(self, q, m, p=0.75):
-        # TODO : Adapt to covariate model 
-        inv_p = sigmoid_inv(p)
-        rho   = self.rho
-        return p - 0.5 * erfc(- (m / q * inv_p) / np.sqrt(2*(rho - m**2 / q + self.effective_Delta)))
+        return -1 
 
     def get_train_loss(self, V, q, m):
-        # TODO : Remplacer effective_Delta par Delta ? 
-        Vstar = self.data_model.rho - m**2/q
-        return traning_error_logistic(m, q, V, Vstar + self.effective_Delta)
+        return -1 

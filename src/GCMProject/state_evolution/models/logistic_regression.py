@@ -18,9 +18,9 @@ class LogisticRegression(Model):
     See base_model for details on modules.
     '''
     def __init__(self, Delta = 0., *, sample_complexity, regularisation, data_model):
-        self.alpha = sample_complexity
-        self.lamb = regularisation
-        self.data_model = data_model
+        self.alpha        = sample_complexity
+        self.lamb         = regularisation
+        self.data_model   = data_model
         # effective_Delta should be useful ONLY for the computatino of the test error,
         # the additional noise due to the model mismatch is taken caren of indirectly in the state evolution
 
@@ -41,7 +41,6 @@ class LogisticRegression(Model):
         self.Delta = Delta
         self.effective_Delta = Delta + self.mismatch_noise_var
         self.rho = self.data_model.get_projected_rho()
-        
         
     def get_info(self):
         info = {
@@ -106,12 +105,10 @@ class LogisticRegression(Model):
         return lossg_mle
     
     def get_calibration(self, q, m, p=0.75):
-        # TODO : Adapt to covariate model 
         inv_p = sigmoid_inv(p)
         rho   = self.rho
         return p - 0.5 * erfc(- (m / q * inv_p) / np.sqrt(2*(rho - m**2 / q + self.effective_Delta)))
 
     def get_train_loss(self, V, q, m):
-        # TODO : Remplacer effective_Delta par Delta ? 
         Vstar = self.data_model.rho - m**2/q
         return traning_error_logistic(m, q, V, Vstar + self.effective_Delta)

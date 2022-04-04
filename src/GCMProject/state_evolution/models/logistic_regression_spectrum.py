@@ -33,13 +33,18 @@ class LogisticRegressionSpectrum(Model):
         return info
 
     def integrate_for_qvm(self, vhat, qhat, mhat):
-        alpha = 1.0 / self.gamma
-        gamma = self.gamma
-        sigma = self.kappa1
-        lamb  = self.lamb
-        kk=self.kappa_star**2
-        alphap=(sigma*(1+np.sqrt(alpha)))**2
-        alpham=(sigma*(1-np.sqrt(alpha)))**2
+        """
+        NOTE : self.gamma = student_size / teacher_size, mais le gamma qu'on definit ci-dessous est juste une valeur 
+        utilisee dans Marcenko-Pastur. De meme, alpha ici ne vaut pas n / d mais est seulement une constante liee a MP
+        """
+        alpha  = self.gamma
+        gamma  = 1.0 / self.gamma
+        
+        sigma  = self.kappa1
+        lamb   = self.lamb
+        kk     = self.kappa_star**2
+        alphap = (sigma*(1 + np.sqrt(alpha)))**2
+        alpham = (sigma*(1 - np.sqrt(alpha)))**2
         if lamb == 0:
             den =1+kk*vhat
             aux =np.sqrt(((alphap+kk)*vhat+1)*((alpham+kk)*vhat+1))
@@ -69,7 +74,7 @@ class LogisticRegressionSpectrum(Model):
     def _update_overlaps(self, vhat, qhat, mhat):
         IV, IQ, IM = self.integrate_for_qvm(vhat, qhat, mhat)
         V = IV
-        m = mhat / np.sqrt(self.gamma) * IM
+        m = mhat * np.sqrt(self.gamma) * IM
         q = IQ
         
         return V, q, m
@@ -81,7 +86,7 @@ class LogisticRegressionSpectrum(Model):
         Iv = integrate_for_Vhat(m, q, V, sigma)
         Iq = integrate_for_Qhat(m, q, V, sigma)
             
-        mhat = self.alpha / np.sqrt(self.gamma) * Im/V
+        mhat = self.alpha * np.sqrt(self.gamma) * Im / V
         Vhat = self.alpha * ((1/V) - (1/V**2) * Iv)
         qhat = self.alpha * Iq/V**2
 
