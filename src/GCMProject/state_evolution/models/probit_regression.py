@@ -15,7 +15,7 @@ def sigmoid_inv(y):
 
 class ProbitRegression(Model):
     '''
-    Implements updates for logistic regression task.
+    Implements updates for probit regression task.
     See base_model for details on modules.
     '''
     def __init__(self, Delta = 0., *, sample_complexity, regularisation, data_model):
@@ -29,23 +29,21 @@ class ProbitRegression(Model):
         self.teacher_size = data_model.k
         self.student_size = data_model.p
 
-        self.Phi = data_model.Phi.T
-        self.Psi = data_model.Psi
-        self.Omega = data_model.Omega
-
-        Omega_inv      = np.linalg.inv(data_model.Omega)
+        self.Phi            = data_model.Phi.T
+        self.Psi            = data_model.Psi
+        self.Omega          = data_model.Omega
+        self.Omega_inv      = data_model.Omega_inv
 
         # Effective noise is due to the mismatch in the models.
         # Should appear only in the update of the hat overlaps normally
-        self.mismatch_noise_var = np.trace(self.Psi - self.Phi @ Omega_inv @ self.Phi.T) / self.teacher_size
+        self.mismatch_noise_var = data_model.get_rho() - data_model.get_projected_rho()
         
         # NOTE : Don't add Delta in the data_model because the noise is not a property of the data but of the teacher
         # Delta = Sigma**2
         self.Delta = Delta
         self.effective_Delta = Delta + self.mismatch_noise_var
         # old
-        # self.rho = self.data_model.rho
-        self.rho = np.trace(self.Psi) / self.teacher_size
+        self.rho = data_model.get_projected_rho()
         
     def get_info(self):
         info = {
@@ -93,7 +91,7 @@ class ProbitRegression(Model):
 
     def get_test_error(self, q, m):
         # NOTE : Removed the noise to be like the GCM Project
-        return np.arccos(m/np.sqrt(q * self.data_model.rho))/np.pi
+        return np.arccos(m/np.sqrt(q * (self.rho + self.effective_Delta)))/np.pi
 
     def get_test_loss(self, q, m):
         Sigma = np.array([

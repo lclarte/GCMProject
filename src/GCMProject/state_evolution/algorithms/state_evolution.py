@@ -108,7 +108,7 @@ class StateEvolution(object):
         self.overlaps['variance'] = self.overlaps['variance'][:t+1]
         self.overlaps['self_overlap'] = self.overlaps['self_overlap'][:t+1]
         self.overlaps['teacher_student'] = self.overlaps['teacher_student'][:t+1]
-        self.overlaps['teacher_teacher'] = self.model.rho
+        self.overlaps['teacher_teacher'] = self.model.get_rho()
 
         self.test_error = self.model.get_test_error(self.overlaps['self_overlap'][-1],
                                                     self.overlaps['teacher_student'][-1])

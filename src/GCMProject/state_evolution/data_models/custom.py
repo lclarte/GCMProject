@@ -15,6 +15,8 @@ class Custom(DataModel):
         
         self.Psi = teacher_teacher_cov   # teacher_size x teacher_size
         self.Omega = student_student_cov # student_size x student_size
+        self.Omega_inv = np.linalg.inv(self.Omega)
+
         self.Phi = teacher_student_cov.T # because of transpose, will be size student_size x teacher_size
         self.theta = teacher_weights
         
@@ -31,6 +33,8 @@ class Custom(DataModel):
         # old : self.rho = self.theta.dot(self.Psi @ self.theta) / self.k
         # NOTE : Here, rho is the trace of Psi, so it already includes the noise due to the mismatch of the model !!! 
         self.rho = np.trace(self.Psi) / self.k
+        # reminder : im data_model, phi is transpose
+        self.projected_rho = np.trace(self.Phi.T @ self.Omega_inv @ self.Phi) / self.k
 
         self._check_sym()
         self._diagonalise() # see base_data_model
@@ -57,6 +61,12 @@ class Custom(DataModel):
         if (np.linalg.norm(self.Psi - self.Psi.T) > 1e-5):
             print('Teacher-teaccher covariance is not a symmetric matrix. Symmetrizing!')
             self.Psi = .5 * (self.Psi+self.Psi.T)
+
+    def get_rho(self):
+        return self.rho
+
+    def get_projected_rho(self):
+        return self.projected_rho
 
 
 class CustomSpectra(DataModel):

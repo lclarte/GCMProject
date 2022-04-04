@@ -4,7 +4,7 @@ import scipy.stats as stats
 import scipy.integrate
 from scipy.linalg import sqrtm
 from .base_model import Model
-from ..auxiliary.logistic_integrals import integrate_for_mhat, integrate_for_Vhat, integrate_for_Qhat, traning_error_logistic
+from ..auxiliary.approximate_probit_integrals import integrate_for_mhat, integrate_for_Vhat, integrate_for_Qhat, traning_error_logistic
 
 def sigmoid(x):
     return 1. / (1. + np.exp(-x))
@@ -12,7 +12,7 @@ def sigmoid(x):
 def sigmoid_inv(y):
     return np.log(y/(1-y))
 
-class LogisticRegression(Model):
+class ApproximateProbitRegression(Model):
     '''
     Implements updates for logistic regression task.
     See base_model for details on modules.

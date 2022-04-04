@@ -49,7 +49,7 @@ class BayesOptimalProbit(Model):
         # New covariance of the teacher (granted the teacher has identity covariance)
         self.cov       = self.Phi.T @ self.Phi
         # NOTE : Here, rho DOES NOT INCLUDE PSI => DOES NOT INCLUDE THE ADDITIONAL NOISE DUE TO THE MISMATCH OF THE MODEL
-        self.rho = np.trace(self.cov) / self.teacher_size
+        self.rho = data_model.get_projected_rho()
 
         # SETTING THE NOISE 
         
@@ -57,7 +57,7 @@ class BayesOptimalProbit(Model):
         self.Delta      = Delta
         # Effective noise is due to the mismatch in the models.
         # Should appear only in the update of the hat overlaps normally
-        self.mismatch_noise_var = np.trace(self.Psi - self.Phi @ self.Phi.T) / self.teacher_size
+        self.mismatch_noise_var = data_model.get_rho() - data_model.get_projected_rho()
         self.effective_Delta = Delta + self.mismatch_noise_var
 
     def get_info(self):
