@@ -11,11 +11,19 @@ class LogisticRegressionSpectrum(Model):
     We assume the covariance matrix of the teacher data (i.e Psi) is the identity
     We only need the kappa coefficients coming from the activation function of the student
     '''
-    def __init__(self, Delta = 0., *, sample_complexity, gamma, regularisation, kappa1, kappastar):
+    # NOTE : Code sale. On va faire un boolean qui si est mis a vrai, va override tous les autres parametres 
+    # Dans le cas ou on est pas overparametrized
+    def __init__(self, Delta = 0., *, sample_complexity, gamma, regularisation, kappa1, kappastar, overparametrized = True):
+        if overparametrized == False and gamma != 1.0:
+            print('Gamma must be 1 when we are not overparametrized')
+            raise Exception()
+
         self.alpha      = sample_complexity
         self.lamb       = regularisation
         self.gamma      = gamma
         self.rho        = 1.0
+        
+        self.overparametrized = overparametrized
 
         self.kappa1     = kappa1
         self.kappa_star = kappastar
@@ -72,11 +80,15 @@ class LogisticRegressionSpectrum(Model):
         return IV, IQ, IM
 
     def _update_overlaps(self, vhat, qhat, mhat):
-        IV, IQ, IM = self.integrate_for_qvm(vhat, qhat, mhat)
-        V = IV
-        m = mhat * np.sqrt(self.gamma) * IM
-        q = IQ
-        
+        if self.overparametrized:
+            IV, IQ, IM = self.integrate_for_qvm(vhat, qhat, mhat)
+            V = IV
+            m = mhat * np.sqrt(self.gamma) * IM
+            q = IQ
+        else:
+            V = 1. / (self.lamb + vhat)
+            q = (mhat**2 + qhat) / (self.lamb + vhat)**2
+            m = mhat / (self.lamb + vhat)
         return V, q, m
 
     def _update_hatoverlaps(self, V, q, m):
