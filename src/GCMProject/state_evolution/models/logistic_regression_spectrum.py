@@ -13,8 +13,8 @@ class LogisticRegressionSpectrum(Model):
     '''
     # NOTE : Code sale. On va faire un boolean qui si est mis a vrai, va override tous les autres parametres 
     # Dans le cas ou on est pas overparametrized
-    def __init__(self, Delta = 0., *, sample_complexity, gamma, regularisation, kappa1, kappastar, overparametrized = True):
-        if overparametrized == False and gamma != 1.0:
+    def __init__(self, Delta = 0., *, sample_complexity, gamma, regularisation, kappa1, kappastar, matching = False):
+        if matching == False and gamma != 1.0:
             print('Gamma must be 1 when we are not overparametrized')
             raise Exception()
 
@@ -23,7 +23,7 @@ class LogisticRegressionSpectrum(Model):
         self.gamma      = gamma
         self.rho        = 1.0
         
-        self.overparametrized = overparametrized
+        self.matching   = matching
 
         self.kappa1     = kappa1
         self.kappa_star = kappastar
@@ -80,18 +80,20 @@ class LogisticRegressionSpectrum(Model):
         return IV, IQ, IM
 
     def _update_overlaps(self, vhat, qhat, mhat):
-        if self.overparametrized:
+        if self.matching:
+            V = 1. / (self.lamb + vhat)
+            q = (mhat**2 + qhat) / (self.lamb + vhat)**2
+            m = mhat / (self.lamb + vhat)
+        else:
             IV, IQ, IM = self.integrate_for_qvm(vhat, qhat, mhat)
             V = IV
             m = mhat * np.sqrt(self.gamma) * IM
             q = IQ
-        else:
-            V = 1. / (self.lamb + vhat)
-            q = (mhat**2 + qhat) / (self.lamb + vhat)**2
-            m = mhat / (self.lamb + vhat)
         return V, q, m
 
     def _update_hatoverlaps(self, V, q, m):
+        # the overparametrization does not change the hat overlap update so we don't have to change this 
+        # since the noise level stays the same 
         sigma = self.rho - m**2/q + self.Delta
         
         Im = integrate_for_mhat(m, q, V, sigma)
