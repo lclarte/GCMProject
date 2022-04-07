@@ -1,9 +1,6 @@
-from math import erfc
-from readline import read_history_file
 import numpy as np
 import scipy.stats as stats
-from scipy.integrate import quad, nquad
-from scipy.linalg import sqrtm
+from scipy.integrate import quad
 from scipy.stats import norm
 
 from .base_model import Model
@@ -28,7 +25,6 @@ class BayesOptimalProbit(Model):
         arguments: 
             - Delta : variance of the noise 
         """
-
         self.alpha = sample_complexity
         self.gamma = student_teacher_size_ratio
     
@@ -47,7 +43,9 @@ class BayesOptimalProbit(Model):
         self.Phi       = data_model.Phi.T
         
         # New covariance of the teacher (granted the teacher has identity covariance)
-        self.cov       = self.Phi.T @ self.Phi
+        self.cov        = self.Phi.T @ self.Phi
+        self.eigvals    = np.linalg.eigvalsh(self.cov)
+
         # NOTE : Here, rho DOES NOT INCLUDE PSI => DOES NOT INCLUDE THE ADDITIONAL NOISE DUE TO THE MISMATCH OF THE MODEL
         self.rho = data_model.get_projected_rho()
 
@@ -66,6 +64,12 @@ class BayesOptimalProbit(Model):
             'sample_complexity': self.alpha,
         }
         return info
+
+    def _update_overlaps_eigenvalues(self, Vhat, qhat, mhat):
+        q = np.sum(qhat * self.eigvals**2 / (1. + qhat * self.eigvals)) / self.teacher_size
+        m = q
+        V = self.rho - q
+        return V, q, m
 
     def _update_overlaps(self, Vhat, qhat, mhat):
         # should not be affected by the noise level

@@ -33,3 +33,4 @@ class DataModel(object):
         self.spec_Omega = np.real(self.spec_Omega)
 
         self.spec_PhiPhit = np.real(np.linalg.eigvalsh(self.PhiPhiT))
+
