@@ -65,25 +65,10 @@ class BayesOptimalProbit(Model):
         }
         return info
 
-    def _update_overlaps_eigenvalues(self, Vhat, qhat, mhat):
+    def _update_overlaps(self, Vhat, qhat, mhat):
         q = np.sum(qhat * self.eigvals**2 / (1. + qhat * self.eigvals)) / self.teacher_size
         m = q
         V = self.rho - q
-        return V, q, m
-
-    def _update_overlaps(self, Vhat, qhat, mhat):
-        # should not be affected by the noise level
-        # NOTE : Assumes the distribution of the input data is identity ! 
-        woodbury_inverse = np.linalg.inv( (1. / qhat) * np.eye(self.student_size) + self.cov)
-        q = (1. / self.teacher_size) * np.trace(
-            qhat * self.cov @ (self.cov - self.cov @ woodbury_inverse @ self.cov)
-        )
-        m = q
-        # NOTE : SE will match the computation of AMP if we take this variance. Note that
-        # Psi does NOT appear in this variance, which is a difference with the GCM paper ... 
-        V = self.rho - q
-        # V = self.rho - q
-
         return V, q, m
 
     def _update_hatoverlaps(self, V, q, m):
