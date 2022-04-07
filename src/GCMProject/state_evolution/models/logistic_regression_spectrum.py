@@ -14,7 +14,7 @@ class LogisticRegressionSpectrum(Model):
     # NOTE : Code sale. On va faire un boolean qui si est mis a vrai, va override tous les autres parametres 
     # Dans le cas ou on est pas overparametrized
     def __init__(self, Delta = 0., *, sample_complexity, gamma, regularisation, kappa1, kappastar, matching = False):
-        if matching == False and gamma != 1.0:
+        if matching and gamma != 1.0:
             print('Gamma must be 1 when we are not overparametrized')
             raise Exception()
 
