@@ -110,5 +110,5 @@ class LogisticRegression(Model):
         return p - 0.5 * erfc(- (m / q * inv_p) / np.sqrt(2*(rho - m**2 / q + self.effective_Delta)))
 
     def get_train_loss(self, V, q, m):
-        Vstar = self.data_model.rho - m**2/q
+        Vstar = self.rho - m**2/q
         return traning_error_logistic(m, q, V, Vstar + self.effective_Delta)
