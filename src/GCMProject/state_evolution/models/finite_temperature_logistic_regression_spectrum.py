@@ -4,22 +4,28 @@ import scipy.stats as stats
 import scipy.integrate
 from scipy.linalg import sqrtm
 from .base_model import Model
-from ..auxiliary.logistic_integrals import integrate_for_mhat, integrate_for_Vhat, integrate_for_Qhat, traning_error_logistic
+from ..auxiliary.logistic_integrals import traning_error_logistic, ft_integrate_for_mhat, ft_integrate_for_Vhat, ft_integrate_for_Qhat
 
-class LogisticRegressionSpectrum(Model):
+class FiniteTemperatureLogisticRegressionSpectrum(Model):
     '''
     We assume the covariance matrix of the teacher data (i.e Psi) is the identity
     We only need the kappa coefficients coming from the activation function of the student
     '''
     # NOTE : Code sale. On va faire un boolean qui si est mis a vrai, va override tous les autres parametres 
     # Dans le cas ou on est pas overparametrized
-    def __init__(self, Delta = 0., *, sample_complexity, gamma, regularisation, kappa1, kappastar, matching = False):
+    def __init__(self, Delta = 0., *, sample_complexity, gamma, beta, regularisation, kappa1, kappastar, matching = False):
+        """
+        arguments : 
+            - beta : inv. temperature
+        The energy function here is e^{beta * (loss + lambda / 2 * | w |^2)}
+        """
         if matching and gamma != 1.0:
             print('Gamma must be 1 when we are not overparametrized')
             raise Exception()
 
         self.alpha      = sample_complexity
         self.lamb       = regularisation
+        self.beta       = beta
         self.gamma      = gamma
         self.rho        = 1.0
         
@@ -40,7 +46,7 @@ class LogisticRegressionSpectrum(Model):
         }
         return info
 
-    def integrate_for_qvm(self, vhat, qhat, mhat):
+    def integrate_for_qvm(self, vhat, qhat, mhat, lamb):
         """
         NOTE : self.gamma = student_size / teacher_size, mais le gamma qu'on definit ci-dessous est juste une valeur 
         utilisee dans Marcenko-Pastur. De meme, alpha ici ne vaut pas n / d mais est seulement une constante liee a MP
@@ -49,7 +55,6 @@ class LogisticRegressionSpectrum(Model):
         gamma  = 1.0 / self.gamma
         
         sigma  = self.kappa1
-        lamb   = self.lamb
         kk     = self.kappa_star**2
         alphap = (sigma*(1 + np.sqrt(alpha)))**2
         alpham = (sigma*(1 - np.sqrt(alpha)))**2
@@ -59,12 +64,12 @@ class LogisticRegressionSpectrum(Model):
             aux2=np.sqrt(((alphap+kk)*vhat+1)/((alpham+kk)*vhat+1))
             IV = ((kk*vhat+1)*((alphap+alpham)*vhat+2)-2*kk*vhat**2*np.sqrt(alphap*alpham)-2*aux)/(4*alpha*vhat**2*(kk*vhat+1)*sigma**2)
             IV = IV + max(0,1-gamma)*kk/(1+vhat*kk)
-            I1= (alphap*vhat*(-3*den+aux)+4*den*(-den+aux)+alpham*vhat*(-2*alphap*vhat-3*den+aux))/(4*alpha*vhat**3*sigma**2*aux)
-            I2= (alphap*vhat+alpham*vhat*(1-2*aux2)+2*den*(1-aux2))/(4*alpha*vhat**2*aux*sigma**2)
-            I3= (2*vhat*alphap*alpham+(alphap+alpham)*den-2*np.sqrt(alphap*alpham)*aux)/(4*alpha*den**2*sigma**2*aux)
-            IQ = (qhat+mhat**2)*I1+(2*qhat+mhat**2)*kk*I2+qhat*kk**2*I3
+            I1 = (alphap * vhat*(-3*den+aux)+4*den*(-den+aux)+alpham*vhat*(-2*alphap*vhat-3*den+aux))/(4*alpha*vhat**3*sigma**2*aux)
+            I2 = (alphap * vhat+alpham*vhat*(1-2*aux2)+2*den*(1-aux2))/(4*alpha*vhat**2*aux*sigma**2)
+            I3 = (2*vhat * alphap*alpham+(alphap+alpham)*den-2*np.sqrt(alphap*alpham)*aux)/(4*alpha*den**2*sigma**2*aux)
+            IQ = (qhat + mhat**2)*I1+(2*qhat+mhat**2)*kk*I2+qhat*kk**2*I3
             IQ = IQ + max(0,1-gamma)*qhat*kk**2/den**2
-            IM = ((alpham+alphap+2*kk)*vhat+2-2*aux)/(4*alpha*vhat**2*sigma**2)
+            IM = ((alpham + alphap+2*kk)*vhat+2-2*aux)/(4*alpha*vhat**2*sigma**2)
         else:
             den =lamb+kk*vhat
             aux =np.sqrt(((alphap+kk)*vhat+lamb)*((alpham+kk)*vhat+lamb))
@@ -80,12 +85,17 @@ class LogisticRegressionSpectrum(Model):
         return IV, IQ, IM
 
     def _update_overlaps(self, vhat, qhat, mhat):
+        """
+        Update of overlaps is NOT the same as logistic regression because here we have exp^{lambda ... }
+        """
+        lamb = self.lamb * self.beta
+
         if self.matching:
-            V = 1. / (self.lamb + vhat)
-            q = (mhat**2 + qhat) / (self.lamb + vhat)**2
-            m = mhat / (self.lamb + vhat)
+            V = 1. / (lamb + vhat)
+            q = (mhat**2 + qhat) / (lamb + vhat)**2
+            m = mhat / (lamb + vhat)
         else:
-            IV, IQ, IM = self.integrate_for_qvm(vhat, qhat, mhat)
+            IV, IQ, IM = self.integrate_for_qvm(vhat, qhat, mhat, lamb)
             V = IV
             m = mhat * np.sqrt(self.gamma) * IM
             q = IQ
@@ -94,15 +104,17 @@ class LogisticRegressionSpectrum(Model):
     def _update_hatoverlaps(self, V, q, m):
         # the overparametrization does not change the hat overlap update so we don't have to change this 
         # since the noise level stays the same 
-        Vstar = self.rho - m**2/q + self.Delta
+        sigma = self.rho - m**2/q + self.Delta
         
-        Im = integrate_for_mhat(m, q, V, Vstar)
-        Iv = integrate_for_Vhat(m, q, V, Vstar)
-        Iq = integrate_for_Qhat(m, q, V, Vstar)
+        Im = ft_integrate_for_mhat(m, q, V, sigma, self.beta)
+        Iv = ft_integrate_for_Vhat(m, q, V, sigma, self.beta)
+        Iq = ft_integrate_for_Qhat(m, q, V, sigma, self.beta)
             
-        mhat = self.alpha * np.sqrt(self.gamma) * Im / V
-        Vhat = self.alpha * ((1/V) - (1/V**2) * Iv)
-        qhat = self.alpha * Iq/V**2
+        mhat = self.alpha * Im
+        Vhat = - self.alpha * Iv
+        qhat = self.alpha * Iq
+
+        print(mhat, Vhat, qhat)
 
         return Vhat, qhat, mhat
 

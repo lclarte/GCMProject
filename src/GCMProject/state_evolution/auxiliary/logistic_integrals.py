@@ -7,7 +7,8 @@ import numpy as np
 from scipy.integrate import quad
 from scipy.special import erf
 from scipy.optimize import minimize_scalar
-
+import scipy.stats as stats
+from . import utility
 
 def gaussian(x, mean=0, var=1):
     return np.exp(-.5 * (x-mean)**2/var) / np.sqrt(2*np.pi*var)
@@ -68,7 +69,7 @@ def f_qhat_minus(ξ, M, Q, V, Vstar):
 
 def integrate_for_Qhat(M, Q, V, Vstar):
     I1 = quad(lambda ξ: f_qhat_plus(ξ, M, Q, V, Vstar) * gaussian(ξ), -10, 10, limit=500)[0]
-    I2 = quad(lambda ξ: f_qhat_minus(ξ, M, Q, V, Vstar)* gaussian(ξ), -10, 10, limit=500)[0]
+    I2 = quad(lambda ξ: f_qhat_minus(ξ, M, Q, V, Vstar) * gaussian(ξ), -10, 10, limit=500)[0]
     return (1/2) * (I1 + I2)
 
 def Integrand_training_error_plus_logistic(ξ, M, Q, V, Vstar):
@@ -95,3 +96,56 @@ def traning_error_logistic(M, Q, V, Vstar):
     I1 = quad(lambda ξ: Integrand_training_error_plus_logistic(ξ, M, Q, V, Vstar) * gaussian(ξ), -10, 10, limit=500)[0]
     I2 = quad(lambda ξ: Integrand_training_error_minus_logistic(ξ, M, Q, V, Vstar) * gaussian(ξ), -10, 10, limit=500)[0]
     return (1/2)*(I1 + I2)
+
+### Integrals for finite temperature logistic 
+
+# ft stands for finite temperature
+def ft_logistic_Z(y, w, V, beta, bound = 5.0):
+    sqrtV = np.sqrt(V)
+    return sqrtV * quad(lambda z : np.exp(-beta * np.log(1. + np.exp(y * (z * sqrtV + w)))) * np.exp(- z**2 / 2), -bound, bound)[0]
+
+def ft_logistic_dwZ(y, w, V, beta, bound = 5.0):
+    sqrtV = np.sqrt(V)
+    return quad(lambda z : z *  np.exp(-beta * np.log(1. + np.exp(y * (z * sqrtV + w)))) * np.exp(- z**2 / 2), -bound, bound)[0]
+
+def ft_logistic_ddwZ(y, w, V, beta, Zerm = None, bound = 5.0):
+    Zerm = Zerm or ft_logistic_Z(y, w, V, beta, bound)
+    sqrtV = np.sqrt(V)
+    to_integrate = lambda z : z**2 * np.exp(-beta * np.log(1. + np.exp(y * (z * sqrtV + w)))) * np.exp(-z**2 / 2.)
+    return - Zerm / V + quad(to_integrate, -bound, bound)[0] / sqrtV
+
+def ft_logistic_ferm(y, w, V, beta, bound = 10.0):
+    return ft_logistic_dwZ(y, w, V, beta, bound) / ft_logistic_Z(y, w, V, beta, bound)
+
+def ft_logistic_dferm(y, w, V, beta, bound = 10.0):
+    Zerm = ft_logistic_Z(y, w, V, beta, bound)
+    dZerm = ft_logistic_dwZ(y, w, V, beta, bound) 
+    ddZerm = ft_logistic_ddwZ(y, w, V, beta, Zerm, bound)
+    return ddZerm / Zerm - (dZerm / Zerm)**2
+
+def Z0(y, w, V):
+    return utility.probit(y * w / np.sqrt(V))
+
+def f0(y, w, V):
+    return  y * stats.norm.pdf(w, loc = 0, scale = np.sqrt(V)) / Z0(y, w, V)
+
+def ft_integrate_for_mhat(M, Q, V, Vstar, beta):
+    bound = 5.0
+    somme = 0.0
+    for y in [-1, 1]:
+        somme += quad(lambda xi : stats.norm.pdf(xi, 0, 1) * ft_logistic_ferm(y, np.sqrt(Q)*xi, V, beta)* f0(y, M / np.sqrt(Q) * xi, Vstar) * Z0(y, M / np.sqrt(Q) * xi, Vstar), -bound, bound, limit=500)[0]
+    return somme
+
+def ft_integrate_for_Qhat(M, Q, V, Vstar, beta):
+    bound = 5.0
+    somme = 0.0
+    for y in [-1, 1]:
+        somme += quad(lambda xi : stats.norm.pdf(xi, 0, 1) * ft_logistic_ferm(y, np.sqrt(Q)*xi, V, beta)**2 * Z0(y, M / np.sqrt(Q) * xi, Vstar), -bound, bound, limit=500)[0]  
+    return somme
+
+def ft_integrate_for_Vhat(M, Q, V, Vstar, beta):
+    bound = 5.0
+    somme = 0.0
+    for y in [-1, 1]:
+        somme += quad(lambda xi : stats.norm.pdf(xi, 0, 1) * ft_logistic_dferm(y, np.sqrt(Q)*xi, V, beta)* f0(y, M / np.sqrt(Q) * xi, Vstar) * Z0(y, M / np.sqrt(Q) * xi, Vstar), -bound, bound, limit=500)[0]
+    return somme
