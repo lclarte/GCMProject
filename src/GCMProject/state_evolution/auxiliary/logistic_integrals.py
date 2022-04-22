@@ -127,7 +127,7 @@ def Z0(y, w, V):
     return utility.probit(y * w / np.sqrt(V))
 
 def dZ0(y, w, V):
-    return y * np.exp(- w**2 / V) / np.sqrt(2 * np.pi * V)
+    return y * np.exp(- w**2 / (2 * V)) / np.sqrt(2 * np.pi * V)
 
 def f0(y, w, V):
     return  dZ0(y, w, V) / Z0(y, w, V)
@@ -136,19 +136,19 @@ def ft_integrate_for_mhat(M, Q, V, Vstar, beta):
     bound = 10.0
     somme = 0.0
     for y in [-1, 1]:
-        somme += quad(lambda xi : stats.norm.pdf(xi, 0, 1) * ft_logistic_ferm(y, np.sqrt(Q)*xi, V, beta) * dZ0(y, M / np.sqrt(Q) * xi, Vstar), -bound, bound, limit=500)[0]
+        somme += quad(lambda xi : np.exp(- xi**2 / 2.0) / np.sqrt(2 * np.pi) * ft_logistic_ferm(y, np.sqrt(Q)*xi, V, beta) * dZ0(y, M / np.sqrt(Q) * xi, Vstar), -bound, bound, limit=500)[0]
     return somme
 
 def ft_integrate_for_Qhat(M, Q, V, Vstar, beta):
     bound = 10.0
     somme = 0.0
     for y in [-1, 1]:
-        somme += quad(lambda xi : stats.norm.pdf(xi, 0, 1) * ft_logistic_ferm(y, np.sqrt(Q)*xi, V, beta)**2 * Z0(y, M / np.sqrt(Q) * xi, Vstar), -bound, bound, limit=500)[0]  
+        somme += quad(lambda xi : np.exp(- xi**2 / 2.0) / np.sqrt(2 * np.pi) * ft_logistic_ferm(y, np.sqrt(Q)*xi, V, beta)**2 * Z0(y, M / np.sqrt(Q) * xi, Vstar), -bound, bound, limit=500)[0]  
     return somme
 
 def ft_integrate_for_Vhat(M, Q, V, Vstar, beta):
     bound = 10.0
     somme = 0.0
     for y in [-1, 1]:
-        somme += quad(lambda xi : stats.norm.pdf(xi, 0, 1) * ft_logistic_dferm(y, np.sqrt(Q)*xi, V, beta) * Z0(y, M / np.sqrt(Q) * xi, Vstar), -bound, bound, limit=500)[0]
+        somme += quad(lambda xi : np.exp(- xi**2 / 2.0) / np.sqrt(2 * np.pi) * ft_logistic_dferm(y, np.sqrt(Q)*xi, V, beta) * Z0(y, M / np.sqrt(Q) * xi, Vstar), -bound, bound, limit=500)[0]
     return somme
