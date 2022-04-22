@@ -114,8 +114,6 @@ class FiniteTemperatureLogisticRegressionSpectrum(Model):
         Vhat = - self.alpha * Iv
         qhat = self.alpha * Iq
 
-        print(mhat, Vhat, qhat)
-
         return Vhat, qhat, mhat
 
     def update_se(self, V, q, m):
