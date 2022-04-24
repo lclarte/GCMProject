@@ -99,20 +99,26 @@ def traning_error_logistic(M, Q, V, Vstar):
 
 ### Integrals for finite temperature logistic 
 
+def p_out(x):
+    if x > -10:
+        return np.log(1. + np.exp(- x))
+    else:
+        return -x
+
 # ft stands for finite temperature
 def ft_logistic_Z(y, w, V, beta, bound = 5.0):
     sqrtV = np.sqrt(V)
-    return sqrtV * quad(lambda z : np.exp(-beta * np.log(1. + np.exp(- y * (z * sqrtV + w)))) * np.exp(- z**2 / 2), -bound, bound)[0]
+    return sqrtV * quad(lambda z : np.exp(-beta * p_out(y * (z * sqrtV + w))) * np.exp(- z**2 / 2), -bound, bound, limit=500)[0]
 
 def ft_logistic_dwZ(y, w, V, beta, bound = 5.0):
     sqrtV = np.sqrt(V)
-    return quad(lambda z : z *  np.exp(-beta * np.log(1. + np.exp(- y * (z * sqrtV + w)))) * np.exp(- z**2 / 2), -bound, bound)[0]
+    return quad(lambda z : z *  np.exp(-beta * p_out(y * (z * sqrtV + w))) * np.exp(- z**2 / 2), -bound, bound, limit=500)[0]
 
 def ft_logistic_ddwZ(y, w, V, beta, Zerm = None, bound = 5.0):
     Zerm = Zerm or ft_logistic_Z(y, w, V, beta, bound)
     sqrtV = np.sqrt(V)
-    to_integrate = lambda z : z**2 * np.exp(-beta * np.log(1. + np.exp(- y * (z * sqrtV + w)))) * np.exp(-z**2 / 2.)
-    return - Zerm / V + quad(to_integrate, -bound, bound)[0] / sqrtV
+    to_integrate = lambda z : z**2 * np.exp(-beta * p_out(y * (z * sqrtV + w))) * np.exp(-z**2 / 2.)
+    return - Zerm / V + quad(to_integrate, -bound, bound, limit=500)[0] / sqrtV
 
 def ft_logistic_ferm(y, w, V, beta, bound = 10.0):
     return ft_logistic_dwZ(y, w, V, beta, bound) / ft_logistic_Z(y, w, V, beta, bound)

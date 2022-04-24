@@ -5,6 +5,7 @@ import scipy.integrate
 from scipy.linalg import sqrtm
 from .base_model import Model
 from ..auxiliary.logistic_integrals import integrate_for_mhat, integrate_for_Vhat, integrate_for_Qhat, traning_error_logistic
+from ..auxiliary import utility
 
 def sigmoid(x):
     return 1. / (1. + np.exp(-x))
@@ -17,30 +18,10 @@ class LogisticRegression(Model):
     Implements updates for logistic regression task.
     See base_model for details on modules.
     '''
-    def __init__(self, Delta = 0., *, sample_complexity, regularisation, data_model):
+    def __init__(self, Delta = 0., *, sample_complexity, regularisation):
         self.alpha        = sample_complexity
         self.lamb         = regularisation
-        self.data_model   = data_model
-        # effective_Delta should be useful ONLY for the computatino of the test error,
-        # the additional noise due to the model mismatch is taken caren of indirectly in the state evolution
-
-        # Do a transformation of the matrices to simplify
-        self.teacher_size = data_model.k
-        self.student_size = data_model.p
-
-        self.Phi = data_model.Phi.T
-        self.Psi = data_model.Psi
-        self.Omega = data_model.Omega
-
-        # Effective noise is due to the mismatch in the models.
-        # Should appear only in the update of the hat overlaps normally
-        self.mismatch_noise_var = self.data_model.get_rho() - self.data_model.get_projected_rho()
-        
-        # NOTE : Don't add Delta in the data_model because the noise is not a property of the data but of the teacher
-        # Delta = Sigma**2 
-        self.Delta = Delta
-        self.effective_Delta = Delta + self.mismatch_noise_var
-        self.rho = self.data_model.get_projected_rho()
+        self.Delta        = Delta
         
     def get_info(self):
         info = {
@@ -50,7 +31,52 @@ class LogisticRegression(Model):
         }
         return info
 
-    def _update_overlaps(self, Vhat, qhat, mhat):
+    def init_with_data_model(self, data_model):
+        self.initialized = True
+        self.using_kappa = False
+        self.matching    = False
+
+        self.data_model  = data_model        
+        
+        # Do a transformation of the matrices to simplify
+        self.teacher_size = data_model.k
+        self.student_size = data_model.p
+        self.gamma        = self.student_size / self.teacher_size
+
+        self.Phi          = data_model.Phi.T
+        self.Psi          = data_model.Psi
+        self.Omega        = data_model.Omega
+
+        # Effective noise is due to the mismatch in the models.
+        # Should appear only in the update of the hat overlaps normally
+        self.mismatch_noise_var = self.data_model.get_rho() - self.data_model.get_projected_rho()
+        # NOTE : Don't add Delta in the data_model because the noise is not a property of the data but of the teacher
+        # Delta = Sigma**2 
+        # effective_Delta should be useful ONLY for the computatino of the test error,
+        # the additional noise due to the model mismatch is taken caren of indirectly in the state evolution
+        self.effective_Delta = self.Delta + self.mismatch_noise_var
+        self.rho = self.data_model.get_projected_rho()
+
+    def init_with_spectrum(self, kappa1, kappastar, gamma):
+        self.initialized = True
+        self.matching    = False
+        self.using_kappa = True
+        self.kappa1      = kappa1
+        self.kappastar   = kappastar
+        self.gamma       = gamma
+
+        self.mismatch_noise_var = utility.get_additional_noise_from_kappas(kappa1, kappastar, gamma)
+        self.effective_Delta = self.Delta + self.mismatch_noise_var
+        self.rho         = 1.0
+
+    def init_matching(self):
+        self.initialized     = True
+        self.matching        = True
+        self.rho             = 1.0
+        self.gamma           = 1.0
+        self.effective_Delta = self.Delta
+
+    def _update_overlaps_covariance(self, Vhat, qhat, mhat):
         # should not be affected by the noise level
         V = np.mean(self.data_model.spec_Omega/(self.lamb + Vhat * self.data_model.spec_Omega))
 
@@ -69,20 +95,86 @@ class LogisticRegression(Model):
 
         return V, q, m
 
+    def integrate_for_qvm(self, vhat, qhat, mhat):
+        """
+        NOTE : self.gamma = student_size / teacher_size, mais le gamma qu'on definit ci-dessous est juste une valeur 
+        utilisee dans Marcenko-Pastur. De meme, alpha ici ne vaut pas n / d mais est seulement une constante liee a MP
+        """
+        alpha  = self.gamma
+        gamma  = 1.0 / self.gamma
+        
+        sigma  = self.kappa1
+        lamb   = self.lamb
+        kk     = self.kappastar**2
+        alphap = (sigma*(1 + np.sqrt(alpha)))**2
+        alpham = (sigma*(1 - np.sqrt(alpha)))**2
+        if lamb == 0:
+            den =1+kk*vhat
+            aux =np.sqrt(((alphap+kk)*vhat+1)*((alpham+kk)*vhat+1))
+            aux2=np.sqrt(((alphap+kk)*vhat+1)/((alpham+kk)*vhat+1))
+            IV = ((kk*vhat+1)*((alphap+alpham)*vhat+2)-2*kk*vhat**2*np.sqrt(alphap*alpham)-2*aux)/(4*alpha*vhat**2*(kk*vhat+1)*sigma**2)
+            IV = IV + max(0,1-gamma)*kk/(1+vhat*kk)
+            I1= (alphap*vhat*(-3*den+aux)+4*den*(-den+aux)+alpham*vhat*(-2*alphap*vhat-3*den+aux))/(4*alpha*vhat**3*sigma**2*aux)
+            I2= (alphap*vhat+alpham*vhat*(1-2*aux2)+2*den*(1-aux2))/(4*alpha*vhat**2*aux*sigma**2)
+            I3= (2*vhat*alphap*alpham+(alphap+alpham)*den-2*np.sqrt(alphap*alpham)*aux)/(4*alpha*den**2*sigma**2*aux)
+            IQ = (qhat+mhat**2)*I1+(2*qhat+mhat**2)*kk*I2+qhat*kk**2*I3
+            IQ = IQ + max(0,1-gamma)*qhat*kk**2/den**2
+            IM = ((alpham+alphap+2*kk)*vhat+2-2*aux)/(4*alpha*vhat**2*sigma**2)
+        else:
+            den =lamb+kk*vhat
+            aux =np.sqrt(((alphap+kk)*vhat+lamb)*((alpham+kk)*vhat+lamb))
+            aux2=np.sqrt(((alphap+kk)*vhat+lamb)/((alpham+kk)*vhat+lamb))
+            IV = ((kk*vhat+lamb)*((alphap+alpham)*vhat+2*lamb)-2*kk*vhat**2*np.sqrt(alphap*alpham)-2*lamb*aux)/(4*alpha*vhat**2*(kk*vhat+lamb)*sigma**2)
+            IV = IV + max(0,1-gamma)*kk/(lamb+vhat*kk)
+            I1= (alphap*vhat*(-3*den+aux)+4*den*(-den+aux)+alpham*vhat*(-2*alphap*vhat-3*den+aux))/(4*alpha*vhat**3*sigma**2*aux)
+            I2= (alphap*vhat+alpham*vhat*(1-2*aux2)+2*den*(1-aux2))/(4*alpha*vhat**2*aux*sigma**2)
+            I3= (2*vhat*alphap*alpham+(alphap+alpham)*den-2*np.sqrt(alphap*alpham)*aux)/(4*alpha*den**2*sigma**2*aux)
+            IQ = (qhat+mhat**2)*I1+(2*qhat+mhat**2)*kk*I2+qhat*kk**2*I3
+            IQ = IQ + max(0,1-gamma)*qhat*kk**2/den**2
+            IM = ((alpham+alphap+2*kk)*vhat+2*lamb-2*aux)/(4*alpha*vhat**2*sigma**2)
+        return IV, IQ, IM
+
+    def _update_overlaps_matching(self, vhat, qhat, mhat):
+        V = 1. / (self.lamb + vhat)
+        q = (mhat**2 + qhat) / (self.lamb + vhat)**2
+        m = mhat / (self.lamb + vhat)
+        return V, q, m
+
+    def _update_overlaps_spectrum(self, vhat, qhat, mhat):
+        IV, IQ, IM = self.integrate_for_qvm(vhat, qhat, mhat)
+        V = IV
+        m = mhat * np.sqrt(self.gamma) * IM
+        q = IQ
+        return V, q, m
+
+    def _update_overlaps(self, vhat, qhat, mhat):
+        if self.matching:
+            return self._update_overlaps_matching(vhat, qhat, mhat)
+        elif self.using_kappa:
+            return self._update_overlaps_spectrum(vhat, qhat, mhat)
+        else:
+            return self._update_overlaps_covariance(vhat, qhat, mhat)
+
     def _update_hatoverlaps(self, V, q, m):
         Vstar = self.rho - m**2/q
 
-        Im = integrate_for_mhat(m, q, V, Vstar + self.effective_Delta)
-        Iv = integrate_for_Vhat(m, q, V, Vstar + self.effective_Delta)
-        Iq = integrate_for_Qhat(m, q, V, Vstar + self.effective_Delta)
+        # NOTE : Normally we don't use effective_Delta, it's (implicitely) 
+        # taken into account in the integrals !
+        Im = integrate_for_mhat(m, q, V, Vstar + self.Delta)
+        Iv = integrate_for_Vhat(m, q, V, Vstar + self.Delta)
+        Iq = integrate_for_Qhat(m, q, V, Vstar + self.Delta)
 
-        mhat = self.alpha/np.sqrt(self.data_model.gamma) * Im/V
+        # NOTE : Ici on multuplied par self.gamma = d / p
+        # dans le code originel, gamma = p / d donc ils divisent par sqrt(gamma)
+        mhat = self.alpha * np.sqrt(self.gamma) * Im/V
         Vhat = self.alpha * ((1/V) - (1/V**2) * Iv)
         qhat = self.alpha * Iq/V**2
 
         return Vhat, qhat, mhat
 
     def update_se(self, V, q, m):
+        if not self.initialized:
+            raise Exception('Model not initialized !! ')
         Vhat, qhat, mhat = self._update_hatoverlaps(V, q, m)
         return self._update_overlaps(Vhat, qhat, mhat)
 
