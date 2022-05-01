@@ -7,6 +7,7 @@ import scipy.integrate
 from scipy.linalg import sqrtm
 from .base_model import Model
 from ..auxiliary.logistic_integrals import traning_error_logistic, ft_integrate_for_mhat, ft_integrate_for_Vhat, ft_integrate_for_Qhat
+from ..auxiliary import utility
 
 class FiniteTemperatureLogisticRegression(Model):
     '''
@@ -15,25 +16,19 @@ class FiniteTemperatureLogisticRegression(Model):
     '''
     # NOTE : Code sale. On va faire un boolean qui si est mis a vrai, va override tous les autres parametres 
     # Dans le cas ou on est pas overparametrized
-    def __init__(self, Delta = 0., *, sample_complexity, gamma, beta, regularisation, matching = False):
+    def __init__(self, Delta = 0., *, sample_complexity, beta, regularisation):
         """
         arguments : 
             - beta : inv. temperature
         The energy function here is e^{beta * (loss + lambda / 2 * | w |^2)}
         """
-        if matching and gamma != 1.0:
-            print('Gamma must be 1 when we are not overparametrized')
-            raise Exception()
-
         self.initialized= False
         self.alpha      = sample_complexity
         self.lamb       = regularisation
         self.beta       = beta
-        self.gamma      = gamma
         self.rho        = 1.0
-        
-        self.matching   = matching
-        
+        self.matching   = False
+
         # NOTE : Don't add Delta in the data_model because the noise is not a property of the data but of the teacher
         # Delta = Sigma**2 
         self.Delta = Delta
@@ -41,17 +36,48 @@ class FiniteTemperatureLogisticRegression(Model):
     def init_with_data_model(self, data_model):
         self.initialized = True
         self.using_kappa = False
+        self.matching    = False
+
         self.data_model  = data_model        
-        self.Phi         = data_model.Phi.T
-        self.Psi         = data_model.Psi
-        self.Omega       = data_model.Omega
+        
+        # Do a transformation of the matrices to simplify
+        self.teacher_size = data_model.k
+        self.student_size = data_model.p
+        self.gamma        = self.student_size / self.teacher_size
 
+        self.Phi          = data_model.Phi.T
+        self.Psi          = data_model.Psi
+        self.Omega        = data_model.Omega
 
-    def init_with_spectrum(self, kappa1, kappastar):
+        # Effective noise is due to the mismatch in the models.
+        # Should appear only in the update of the hat overlaps normally
+        self.mismatch_noise_var = self.data_model.get_rho() - self.data_model.get_projected_rho()
+        # NOTE : Don't add Delta in the data_model because the noise is not a property of the data but of the teacher
+        # Delta = Sigma**2 
+        # effective_Delta should be useful ONLY for the computatino of the test error,
+        # the additional noise due to the model mismatch is taken caren of indirectly in the state evolution
+        self.effective_Delta = self.Delta + self.mismatch_noise_var
+        self.rho = self.data_model.get_projected_rho()
+
+    def init_with_spectrum(self, kappa1, kappastar, gamma):
         self.initialized = True
+        self.matching    = False
         self.using_kappa = True
         self.kappa1      = kappa1
         self.kappastar   = kappastar
+        self.gamma       = gamma
+
+        self.mismatch_noise_var = utility.get_additional_noise_from_kappas(kappa1, kappastar, gamma)
+        self.effective_Delta = self.Delta + self.mismatch_noise_var
+        self.rho          = 1.0
+
+    def init_matching(self):
+        self.initialized     = True
+        self.matching        = True
+        self.rho             = 1.0
+        self.gamma           = 1.0
+        self.effective_Delta = self.Delta
+
 
     def get_info(self):
         info = {
@@ -70,7 +96,7 @@ class FiniteTemperatureLogisticRegression(Model):
         gamma  = 1.0 / self.gamma
         
         sigma  = self.kappa1
-        kk     = self.kappa_star**2
+        kk     = self.kappastar**2
         alphap = (sigma*(1 + np.sqrt(alpha)))**2
         alpham = (sigma*(1 - np.sqrt(alpha)))**2
         if lamb == 0:
@@ -99,16 +125,17 @@ class FiniteTemperatureLogisticRegression(Model):
             IM = ((alpham+alphap+2*kk)*vhat+2*lamb-2*aux)/(4*alpha*vhat**2*sigma**2)
         return IV, IQ, IM
 
-    def _update_overlaps_spectrum(self, vhat, qhat, mhat, lamb):
-        if self.matching:
-            V = 1. / (lamb + vhat)
-            q = (mhat**2 + qhat) / (lamb + vhat)**2
-            m = mhat / (lamb + vhat)
-        else:
-            IV, IQ, IM = self.integrate_for_qvm(vhat, qhat, mhat, lamb)
-            V = IV
-            m = mhat * np.sqrt(self.gamma) * IM
-            q = IQ
+    def _update_overlaps_spectrum(self, vhat, qhat, mhat, lamb):    
+        IV, IQ, IM = self.integrate_for_qvm(vhat, qhat, mhat, lamb)
+        V = IV
+        m = mhat * np.sqrt(self.gamma) * IM
+        q = IQ
+        return V, q, m
+
+    def _update_overlaps_matching(self, vhat, qhat, mhat, lamb):
+        V = 1. / (lamb + vhat)
+        q = (mhat**2 + qhat) / (lamb + vhat)**2
+        m = mhat / (lamb + vhat)
         return V, q, m
 
     def _update_overlaps_covariance(self, Vhat, qhat, mhat, lamb):
@@ -120,13 +147,13 @@ class FiniteTemperatureLogisticRegression(Model):
                                            mhat**2 * self.data_model.spec_Omega * self.data_model.spec_PhiPhit) /
                                           (lamb + Vhat*self.data_model.spec_Omega)**2)
 
-            m = mhat / np.sqrt(self.data_model.gamma) * np.mean(self.data_model.spec_PhiPhit/(lamb + Vhat*self.data_model.spec_Omega))
+            m = mhat * np.sqrt(self.gamma) * np.mean(self.data_model.spec_PhiPhit/(lamb + Vhat*self.data_model.spec_Omega))
 
         else:
             q = qhat * np.mean(self.data_model.spec_Omega**2 / (lamb + Vhat*self.data_model.spec_Omega)**2)
             q += mhat**2 * np.mean(self.data_model._UTPhiPhiTU * self.data_model.spec_Omega/(lamb + Vhat * self.data_model.spec_Omega)**2)
 
-            m = mhat/np.sqrt(self.data_model.gamma) * np.mean(self.data_model._UTPhiPhiTU/(lamb + Vhat * self.data_model.spec_Omega))
+            m = mhat * np.sqrt(self.gamma) * np.mean(self.data_model._UTPhiPhiTU/(lamb + Vhat * self.data_model.spec_Omega))
 
         return V, q, m
 
@@ -135,7 +162,9 @@ class FiniteTemperatureLogisticRegression(Model):
         Update of overlaps is NOT the same as logistic regression because here we have exp^{lambda ... }
         """
         lamb = self.lamb * self.beta
-
+        
+        if self.matching:
+            return self._update_overlaps_matching(vhat, qhat, mhat, lamb)
         if self.using_kappa:
             return self._update_overlaps_spectrum(vhat, qhat, mhat, lamb)
         else:
@@ -150,7 +179,7 @@ class FiniteTemperatureLogisticRegression(Model):
         Iv = ft_integrate_for_Vhat(m, q, V, sigma, self.beta)
         Iq = ft_integrate_for_Qhat(m, q, V, sigma, self.beta)
             
-        mhat = self.alpha /np.sqrt(self.data_model.gamma) * Im
+        mhat = self.alpha * np.sqrt(self.gamma) * Im
         Vhat = - self.alpha * Iv
         qhat = self.alpha * Iq
 
