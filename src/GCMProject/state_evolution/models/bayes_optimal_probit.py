@@ -37,8 +37,6 @@ class BayesOptimalProbit(Model):
         self.Psi       = data_model.Psi
         self.Omega     = data_model.Omega
 
-        if np.linalg.norm(data_model.Omega - np.eye(self.student_size)) > 1e-10:
-            raise Exception()
         # transpose data_model.Phi because it's transposed in the definition of the Custom data model class
         self.Phi       = data_model.Phi.T
         
