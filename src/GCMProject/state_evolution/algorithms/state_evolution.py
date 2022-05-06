@@ -1,4 +1,4 @@
-from http.client import TEMPORARY_REDIRECT
+from time import time 
 import numpy as np
 
 class StateEvolution(object):
@@ -12,20 +12,20 @@ class StateEvolution(object):
     max_steps: maximum number of steps before convergence
     model: instance of model class. See /models.
     '''
-    def __init__(self, initialisation='uninformed', tolerance=1e-10, damping=0,
+    def __init__(self, initialisation='uninformed', tolerance=1e-10, relative_tolerance=False, damping=0,
                  verbose=False, max_steps=1000, stop_threshold = 100.0, *, model):
 
-        self.max_steps = max_steps
-        self.init = initialisation
-        self.tol = tolerance
-        self.damping = damping
-        self.model = model
-        self.verbose = verbose
-        self.stop_threshold = stop_threshold
+        self.max_steps          = max_steps
+        self.init               = initialisation
+        self.tol                = tolerance
+        self.relative_tolerance = relative_tolerance
+        self.damping            = damping
+        self.model              = model
+        self.verbose            = verbose
+        self.stop_threshold     = stop_threshold
 
         # Status = 0 at initialisation.
-        self.status = 0
-
+        self.status             = 0.0
 
     def _initialise(self):
         '''
@@ -70,9 +70,11 @@ class StateEvolution(object):
         self._initialise()
 
         for t in range(self.max_steps):
+            debut = time()
             Vtmp, qtmp, mtmp = self.model.update_se(self.overlaps['variance'][t],
                                                self.overlaps['self_overlap'][t],
                                                self.overlaps['teacher_student'][t])
+            time_diff = time() - debut
 
             self.overlaps['variance'][t+1] = self.damp(Vtmp, self.overlaps['variance'][t])
             self.overlaps['self_overlap'][t+1] = self.damp(qtmp, self.overlaps['self_overlap'][t])
@@ -81,10 +83,13 @@ class StateEvolution(object):
             diff = self._get_diff(t)
 
             if self.verbose:
-                print('t: {}, diff: {}, self overlaps: {}, teacher-student overlap: {}'.format(t, diff,
-                                                                                               self.overlaps['self_overlap'][t+1],
-                                                                                               self.overlaps['teacher_student'][t+1]))
-            if diff < self.tol:
+                print('t: {}, diff: {}, self overlaps: {}, teacher-student overlap: {}, time : {}'.format(t, diff, self.overlaps['self_overlap'][t+1], self.overlaps['teacher_student'][t+1], time_diff))
+            if self.relative_tolerance == True:
+                if np.abs(self.overlaps['self_overlap'][t+1] - self.overlaps['self_overlap'][t]) / self.overlaps['self_overlap'][t] < self.tol:
+                    self.status = 1
+                    break
+
+            if self.relative_tolerance == False and diff < self.tol:
             # If iterations converge, set status = 1
                 if self.verbose:
                     print('Saddle point equations converged with t={} iterations'.format(t+1))

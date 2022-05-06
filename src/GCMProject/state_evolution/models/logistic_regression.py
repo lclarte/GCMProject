@@ -4,7 +4,7 @@ import scipy.stats as stats
 import scipy.integrate
 from scipy.linalg import sqrtm
 from .base_model import Model
-from ..auxiliary.logistic_integrals import integrate_for_mhat, integrate_for_Vhat, integrate_for_Qhat, traning_error_logistic
+from ..auxiliary.logistic_integrals import integrate_for_mhat, integrate_for_Vhat, integrate_for_Qhat, training_hessian_integral, traning_error_logistic, spectrum_trace_Omega_squared, spectrum_trace_Omega
 from ..auxiliary import utility
 
 def sigmoid(x):
@@ -203,5 +203,22 @@ class LogisticRegression(Model):
         return p - 0.5 * erfc(- (m / q * inv_p) / np.sqrt(2*(rho - m**2 / q + self.effective_Delta)))
 
     def get_train_loss(self, V, q, m):
-        Vstar = self.rho - m**2/q
+        Vstar = self.rho - m**2/q 
         return traning_error_logistic(m, q, V, Vstar + self.effective_Delta)
+
+    def get_training_hessian(self, V, q, m):
+        """
+        Returns a scalar (and not a matrix !) corresponding to v^T Hessian v, when we do a prediction on a new sample v
+        We assume that vv^T will converge to Omega
+        """
+        # rho is projected rho here ! 
+        Vstar = 1.0 - m**2 / q + self.effective_Delta
+        H     = training_hessian_integral(m, q, V, Vstar)
+
+        if self.matching:
+            return self.alpha * H + self.lamb
+        if self.using_kappa == False:
+            return self.alpha * np.trace(self.Omega**2) * H + self.lamb * np.trace(self.Omega)
+        # trace of Omega : 
+        trace_Omega, trace_Omega_2 = spectrum_trace_Omega(self.kappa1, self.kappastar, self.gamma), spectrum_trace_Omega_squared(self.kappa1, self.kappastar, self.gamma)
+        return self.alpha * trace_Omega_2 * H + self.lamb * trace_Omega

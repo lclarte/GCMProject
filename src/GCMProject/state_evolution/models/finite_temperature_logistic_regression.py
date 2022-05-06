@@ -1,12 +1,8 @@
 from math import erfc
 
-from zmq import EVENT_CLOSE_FAILED
 import numpy as np
-import scipy.stats as stats
-import scipy.integrate
-from scipy.linalg import sqrtm
 from .base_model import Model
-from ..auxiliary.logistic_integrals import traning_error_logistic, ft_integrate_for_mhat, ft_integrate_for_Vhat, ft_integrate_for_Qhat
+from ..auxiliary.logistic_integrals import ft_integrate_for_mhat, ft_integrate_for_Vhat, ft_integrate_for_Qhat
 from ..auxiliary import utility
 
 class FiniteTemperatureLogisticRegression(Model):
