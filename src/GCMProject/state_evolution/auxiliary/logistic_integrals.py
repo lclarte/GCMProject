@@ -120,10 +120,16 @@ def training_hessian_integral(m, q, v, vstar):
 
     return I1 + I2
 
-def training_hessian(rho, m, q, V, effective_Delta, lambda_, tr_omega, tr_omega_2):
+def training_hessian(rho, m, q, V, effective_Delta, alpha, lambda_, tr_omega, tr_omega_2):
     Vstar = rho - m**2 / q + effective_Delta
     integral = training_hessian_integral(m, q, V, Vstar)
-    return tr_omega_2 * integral + tr_omega * lambda_
+    return alpha * tr_omega_2 * integral + tr_omega * lambda_
+
+def training_hessian_from_kappa(rho, m, q, V, effective_Delta, alpha, lambda_, kappa1, kappastar, gamma):
+    tr_omega = spectrum_trace_Omega(kappa1, kappastar, gamma)
+    tr_omega_2 = spectrum_trace_Omega_squared(kappa1, kappastar, gamma)
+    return training_hessian(rho, m, q, V, effective_Delta, alpha, lambda_, tr_omega, tr_omega_2)
+
 
 ### Integrals for finite temperature logistic 
 
