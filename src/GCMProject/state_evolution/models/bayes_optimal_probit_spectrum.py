@@ -9,7 +9,8 @@ from ..auxiliary import utility
 
 class BayesOptimalProbitSpectrum(Model):
     '''
-    We assume the covariance matrix of the teacher data (i.e Psi) is the identity
+    We assume the covariance matrix of the teacher data (i.e Psi) is the identity => Actually, it does not change our computations 
+    as the overlaps will remain the same
     We only need the kappa coefficients coming from the activation function of the student
     '''
     # NOTE : Code sale. On va faire un boolean qui si est mis a vrai, va override tous les autres parametres 

@@ -45,7 +45,8 @@ class BayesOptimalProbit(Model):
         self.eigvals    = np.linalg.eigvalsh(self.cov)
 
         # NOTE : Here, rho DOES NOT INCLUDE PSI => DOES NOT INCLUDE THE ADDITIONAL NOISE DUE TO THE MISMATCH OF THE MODEL
-        self.rho = data_model.get_projected_rho()
+        self.rho           = data_model.get_rho()
+        self.projected_rho =  data_model.get_projected_rho()
 
         # SETTING THE NOISE 
         
@@ -66,7 +67,7 @@ class BayesOptimalProbit(Model):
     def _update_overlaps(self, Vhat, qhat, mhat):
         q = np.sum(qhat * self.eigvals**2 / (1. + qhat * self.eigvals)) / self.teacher_size
         m = q
-        V = self.rho - q
+        V = self.projected_rho - q
         return V, q, m
 
     def _update_hatoverlaps(self, V, q, m):
@@ -88,7 +89,7 @@ class BayesOptimalProbit(Model):
     def get_test_error(self, q, m):
         # NOTE : Removed the noise to be like the GCM Project
         # We add the noise due to the mismatch because rho does not include it 
-        return np.arccos(m/np.sqrt(q * (self.rho + self.mismatch_noise_var)))/np.pi
+        return np.arccos(m/np.sqrt(q * self.rho))/np.pi
 
     def get_test_loss(self, q, m):
         return - 1.0
