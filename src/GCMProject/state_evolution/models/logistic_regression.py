@@ -4,7 +4,7 @@ import scipy.stats as stats
 import scipy.integrate
 from scipy.linalg import sqrtm
 from .base_model import Model
-from ..auxiliary.logistic_integrals import integrate_for_mhat, integrate_for_Vhat, integrate_for_Qhat, traning_error_logistic, training_hessian_from_kappa
+from ..auxiliary.logistic_integrals import integrate_for_mhat, integrate_for_Vhat, integrate_for_Qhat, traning_error_logistic, training_hessian_omega_from_kappa
 from ..auxiliary import utility
 
 def sigmoid(x):
@@ -203,10 +203,11 @@ class LogisticRegression(Model):
 
     def get_training_hessian(self, V, q, m):
         """
+        DO NOT USE THIS FOR NOW !!!!! 
         Returns a scalar (and not a matrix !) corresponding to v^T Hessian v, when we do a prediction on a new sample v
         We assume that vv^T will converge to Omega
         """
         if not self.using_kappa:
             # TODO : Implement if not using kappas
             raise Exception()
-        return training_hessian_from_kappa(self.rho, m, q, V, self.Delta, self.alpha, self.lambda_, self.kappa1, self.kappastar, self.gamma)
+        return training_hessian_omega_from_kappa(self.rho, m, q, V, self.Delta, self.alpha, self.lambda_, self.kappa1, self.kappastar, self.gamma)

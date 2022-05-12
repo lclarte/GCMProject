@@ -50,3 +50,15 @@ def get_additional_noise_from_kappas(kappa1, kappastar, gamma):
     def to_integrate(lambda_, kk1, kkstar, lambda_minus, lambda_plus):
         return np.sqrt((lambda_plus - lambda_) * (lambda_ - lambda_minus)) / (kkstar + kk1 * lambda_)
     return 1.0 - kk1 * quad(lambda lambda_ : to_integrate(lambda_, kk1, kkstar, lambda_minus, lambda_plus), lambda_minus, lambda_plus)[0] / (2 * np.pi)
+
+# For Marcenko Pastur integration
+
+def mp_integral(f : callable, gamma):
+    """
+    integrates an arbitrary function against MP distriubtion
+    """
+    lambda_minus, lambda_plus = (1. - np.sqrt(gamma))**2, (1. + np.sqrt(gamma))**2
+    integral = quad(lambda x : f(x) * np.sqrt((lambda_plus - x) * (x - lambda_minus)) / (2 * np.pi * gamma * x), lambda_minus, lambda_plus)[0]
+    if gamma > 1.0:
+        return integral + (1.0 - 1.0 / gamma) * f(0.0)
+    return integral

@@ -6,7 +6,7 @@ class DataModel(object):
     '''
     def __init__(self):
         self.p, self.d = self.Phi.shape
-
+    
         self._diagonalise()
         self._commute()
 
