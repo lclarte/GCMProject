@@ -121,10 +121,10 @@ def ft_logistic_ddwZ(y, w, V, beta, Zerm = None, bound = 5.0):
     to_integrate = lambda z : z**2 * np.exp(-beta * p_out(y * (z * sqrtV + w))) * np.exp(-z**2 / 2.)
     return - Zerm / V + quad(to_integrate, -bound, bound, limit=500)[0] / sqrtV
 
-def ft_logistic_ferm(y, w, V, beta, bound = 10.0):
+def ft_logistic_ferm(y, w, V, beta, bound = 5.0):
     return ft_logistic_dwZ(y, w, V, beta, bound) / ft_logistic_Z(y, w, V, beta, bound)
 
-def ft_logistic_dferm(y, w, V, beta, bound = 10.0):
+def ft_logistic_dferm(y, w, V, beta, bound = 5.0):
     Zerm = ft_logistic_Z(y, w, V, beta, bound)
     dZerm = ft_logistic_dwZ(y, w, V, beta, bound) 
     ddZerm = ft_logistic_ddwZ(y, w, V, beta, Zerm, bound)
@@ -140,21 +140,21 @@ def f0(y, w, V):
     return  dZ0(y, w, V) / Z0(y, w, V)
 
 def ft_integrate_for_mhat(M, Q, V, Vstar, beta):
-    bound = 10.0
+    bound = 5.0
     somme = 0.0
     for y in [-1, 1]:
         somme += quad(lambda xi : np.exp(- xi**2 / 2.0) / np.sqrt(2 * np.pi) * ft_logistic_ferm(y, np.sqrt(Q)*xi, V, beta) * dZ0(y, M / np.sqrt(Q) * xi, Vstar), -bound, bound, limit=500)[0]
     return somme
 
 def ft_integrate_for_Qhat(M, Q, V, Vstar, beta):
-    bound = 10.0
+    bound = 5.0
     somme = 0.0
     for y in [-1, 1]:
         somme += quad(lambda xi : np.exp(- xi**2 / 2.0) / np.sqrt(2 * np.pi) * ft_logistic_ferm(y, np.sqrt(Q)*xi, V, beta)**2 * Z0(y, M / np.sqrt(Q) * xi, Vstar), -bound, bound, limit=500)[0]  
     return somme
 
 def ft_integrate_for_Vhat(M, Q, V, Vstar, beta):
-    bound = 10.0
+    bound = 5.0
     somme = 0.0
     for y in [-1, 1]:
         somme += quad(lambda xi : np.exp(- xi**2 / 2.0) / np.sqrt(2 * np.pi) * ft_logistic_dferm(y, np.sqrt(Q)*xi, V, beta) * Z0(y, M / np.sqrt(Q) * xi, Vstar), -bound, bound, limit=500)[0]
@@ -273,3 +273,20 @@ def training_inverse_hessian_omega_from_kappa(rho, m, q, V, Delta, alpha, lambda
         return zero_part + int_part
 
     return int_part
+
+### ==== to optimize for lambda to maximize the evidence 
+
+def lambda_objective(lambda_, beta, kappa1, kappastar, gamma, qhat, mhat, Vhat):
+    """
+    Function we want to cancel (might be positive or negative)
+    """
+    kk1, kkstar = kappa1**2, kappastar**2
+    integrand = lambda x : 1. / (lambda_ * beta + Vhat * (kk1 * x + kkstar)) \
+                            - (mhat**2 * kk1 * x + qhat * (kk1 * x + kkstar)) / (beta * lambda_ + Vhat * (kk1 * x + kkstar))**2
+    return utility.mp_integral(integrand, gamma)
+
+def lambda_objective_prime(lambda_, beta, kappa1, kappastar, gamma, qhat, mhat, Vhat):
+    kk1, kkstar = kappa1**2, kappastar**2
+    integrand = lambda x : - 1. / (lambda_ * beta + Vhat * (kk1 * x + kkstar))**2 \
+                            + 2 * (mhat**2 * kk1 * x + qhat * (kk1 * x + kkstar)) / (beta * lambda_ + Vhat * (kk1 * x + kkstar))**3
+    return beta * utility.mp_integral(integrand, gamma)
