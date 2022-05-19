@@ -32,6 +32,18 @@ class BayesOptimalProbit(Model):
         self.Delta = Delta
         self.initialized = False
 
+    def init_with_data_model(self, data_model):
+        super().init_with_data_model(data_model)
+        
+        self.Omega_inv = np.linalg.inv(self.Omega)
+        self.Omega_inv_sqrt = sqrtm(self.Omega_inv)
+
+        # transpose data_model.Phi because it's transposed in the definition of the Custom data model class
+        
+        # New covariance of the teacher (granted the teacher has identity covariance)
+        self.cov        = self.Omega_inv_sqrt @ self.Phi.T @ self.Phi @ self.Omega_inv_sqrt
+        self.eigvals    = np.linalg.eigvalsh(self.cov)
+
     def get_info(self):
         info = {
             'model': 'bo_probit',
@@ -39,55 +51,6 @@ class BayesOptimalProbit(Model):
         }
         return info
 
-    def init_with_spectrum(self, kappa1, kappastar, gamma):
-        self.initialized = True
-        self.using_kappa = True
-        self.matching    = False
-
-        self.kappa1 = kappa1
-        self.kappastar = kappastar
-        self.gamma = gamma
-
-        self.add_noise = utility.get_additional_noise_from_kappas(kappa1, kappastar, gamma)
-        self.effective_Delta = self.Delta + self.add_noise
-        self.rho = 1.0
-        self.projected_rho = self.rho - self.add_noise
-
-    def init_with_data_model(self, data_model):    
-        self.initialized = True
-        self.using_kappa = False
-        self.matching    = False
-
-        self.data_model  = data_model
-
-        # Do a transformation of the matrices to simplify
-        self.teacher_size = len(data_model.Psi)
-        self.student_size = len(data_model.Omega)
-        self.gamma = self.student_size / self.teacher_size
-
-        self.Psi       = data_model.Psi
-        self.Omega     = data_model.Omega
-        self.Omega_inv = np.linalg.inv(self.Omega)
-        self.Omega_inv_sqrt = sqrtm(self.Omega_inv)
-
-        # transpose data_model.Phi because it's transposed in the definition of the Custom data model class
-        self.Phi       = data_model.Phi.T
-        
-        # New covariance of the teacher (granted the teacher has identity covariance)
-        self.cov        = self.Omega_inv_sqrt @ self.Phi.T @ self.Phi @ self.Omega_inv_sqrt
-        self.eigvals    = np.linalg.eigvalsh(self.cov)
-
-        # NOTE : Here, rho DOES NOT INCLUDE PSI => DOES NOT INCLUDE THE ADDITIONAL NOISE DUE TO THE MISMATCH OF THE MODEL
-        self.rho           =  data_model.get_rho()
-        self.projected_rho =  data_model.get_projected_rho()
-
-        # SETTING THE NOISE 
-        
-        # NOTE : Don't add Delta in the data_model because the noise is not a property of the data but of the teacher
-        # Effective noise is due to the mismatch in the models.
-        # Should appear only in the update of the hat overlaps normally
-        self.mismatch_noise_var = data_model.get_rho() - data_model.get_projected_rho()
-        self.effective_Delta = self.Delta + self.mismatch_noise_var
 
     def _update_overlaps(self, Vhat, qhat, mhat):
         if self.using_kappa == False:
