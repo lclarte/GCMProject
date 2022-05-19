@@ -13,7 +13,7 @@ class StateEvolution(object):
     model: instance of model class. See /models.
     '''
     def __init__(self, initialisation='uninformed', tolerance=1e-10, relative_tolerance=False, damping=0,
-                 verbose=False, max_steps=1000, stop_threshold = 100.0, *, model):
+                 verbose=False, max_steps=1000, stop_threshold = float('inf'), *, model):
 
         self.max_steps          = max_steps
         self.init               = initialisation
@@ -115,21 +115,6 @@ class StateEvolution(object):
         self.overlaps['teacher_student'] = self.overlaps['teacher_student'][:t+1]
         self.overlaps['teacher_teacher'] = self.model.rho
 
-        self.test_error = self.model.get_test_error(self.overlaps['self_overlap'][-1],
-                                                    self.overlaps['teacher_student'][-1])
-        try:
-            self.test_loss = self.model.get_test_loss(self.overlaps['self_overlap'][-1],
-                                                        self.overlaps['teacher_student'][-1])
-
-            self.calibration = self.model.get_calibration(self.overlaps['self_overlap'][-1],
-                                                        self.overlaps['teacher_student'][-1])
-
-            self.train_loss = self.model.get_train_loss(self.overlaps['variance'][-1],
-                                                        self.overlaps['self_overlap'][-1],
-                                                        self.overlaps['teacher_student'][-1])
-        except Exception as e:
-            print(e)
-            print('Implemented only for logistic regression and BO')
 
     def get_info(self):
         info = {
@@ -144,18 +129,12 @@ class StateEvolution(object):
             info.update({
                 'status': self.status,
                 'convergence_time': self.t_max,
-                'test_error': self.test_error,
                 'overlaps': {
                     'variance': self.overlaps['variance'][-1],
                     'self_overlap': self.overlaps['self_overlap'][-1],
                     'teacher_student': self.overlaps['teacher_student'][-1],
                     'teacher_teacher': self.overlaps['teacher_teacher']
                 }
-            })
-            info.update({
-                'test_loss' : self.test_loss,
-                'train_loss': self.train_loss,
-                'calibration' : self.calibration,
             })
 
         return info
