@@ -4,7 +4,8 @@ import scipy.stats as stats
 import scipy.integrate
 from scipy.linalg import sqrtm
 from .base_model import Model
-from ..auxiliary.logistic_integrals import integrate_for_mhat, integrate_for_Vhat, integrate_for_Qhat, traning_error_logistic, training_hessian_omega_from_kappa
+from ..auxiliary.logistic_integrals import integrate_for_mhat, integrate_for_Vhat, integrate_for_Qhat
+from ..auxiliary.logistic_data_logistic_integrals import logistic_integrate_for_mhat, logistic_integrate_for_Qhat, logistic_integrate_for_Vhat
 from ..auxiliary import utility
 
 def sigmoid(x):
@@ -22,6 +23,7 @@ class LogisticRegression(Model):
         self.alpha        = sample_complexity
         self.lamb         = regularisation
         self.Delta        = Delta
+        self.type_of_data_model = 'probit'
         
     def get_info(self):
         info = {
@@ -30,6 +32,12 @@ class LogisticRegression(Model):
             'lambda': self.lamb,
         }
         return info
+
+    def use_logistic_data_model(self):
+        if self.Delta != 0:
+            raise Exception()
+        # no additional noise
+        self.type_of_data_model = 'logistic'
 
     def init_with_data_model(self, data_model):
         self.initialized = True
@@ -161,16 +169,25 @@ class LogisticRegression(Model):
 
         # NOTE : Normally we don't use effective_Delta, it's (implicitely) 
         # taken into account in the integrals !
-        Im = integrate_for_mhat(m, q, V, Vstar + self.Delta)
-        Iv = integrate_for_Vhat(m, q, V, Vstar + self.Delta)
-        Iq = integrate_for_Qhat(m, q, V, Vstar + self.Delta)
-
         # NOTE : Ici on multuplied par self.gamma = d / p
         # dans le code originel, gamma = p / d donc ils divisent par sqrt(gamma)
-        mhat = self.alpha * np.sqrt(self.gamma) * Im/V
-        Vhat = self.alpha * ((1/V) - (1/V**2) * Iv)
-        qhat = self.alpha * Iq/V**2
+        if self.type_of_data_model == 'probit':
+            Im = integrate_for_mhat(m, q, V, Vstar + self.Delta)
+            Iv = integrate_for_Vhat(m, q, V, Vstar + self.Delta)
+            Iq = integrate_for_Qhat(m, q, V, Vstar + self.Delta)
+            mhat = self.alpha * np.sqrt(self.gamma) * Im/V
+            Vhat = self.alpha * ((1/V) - (1/V**2) * Iv)
+            qhat = self.alpha * Iq/V**2
 
+        elif self.type_of_data_model == 'logistic':
+            assert self.Delta == 0.0
+            Im = logistic_integrate_for_mhat(m, q, V, Vstar)
+            Iv = logistic_integrate_for_Vhat(m, q, V, Vstar)
+            Iq = logistic_integrate_for_Qhat(m, q, V, Vstar)
+            mhat = self.alpha * np.sqrt(self.gamma) * Im
+            Vhat = - self.alpha * Iv
+            qhat = self.alpha * Iq
+            
         return Vhat, qhat, mhat
 
     def update_se(self, V, q, m):
@@ -178,36 +195,3 @@ class LogisticRegression(Model):
             raise Exception('Model not initialized !! ')
         Vhat, qhat, mhat = self._update_hatoverlaps(V, q, m)
         return self._update_overlaps(Vhat, qhat, mhat)
-
-    def get_test_error(self, q, m):
-        # NOTE : Removed the noise to be like the GCM Project
-        # We still include the noise due to the mismatch because this is incompressible
-        return np.arccos(m/np.sqrt(q * self.rho))/np.pi
-
-    def get_test_loss(self, q, m):
-        Sigma = np.array([
-            [self.rho + self.Delta, m],
-            [m, q]
-        ])
-
-        def loss_integrand(lf_teacher, lf_erm):
-            return np.log(1. + np.exp(- np.sign(lf_teacher) * lf_erm)) * stats.multivariate_normal.pdf([lf_teacher, lf_erm], mean=np.zeros(2), cov=Sigma)
-        
-        ranges = [(-10.0, 10.0), (-10.0, 10.0)]
-        lossg_mle = scipy.integrate.nquad(loss_integrand, ranges)[0]
-        return lossg_mle
-    
-    def get_train_loss(self, V, q, m):
-        Vstar = self.rho - m**2/q 
-        return traning_error_logistic(m, q, V, Vstar + self.Delta)
-
-    def get_training_hessian(self, V, q, m):
-        """
-        DO NOT USE THIS FOR NOW !!!!! 
-        Returns a scalar (and not a matrix !) corresponding to v^T Hessian v, when we do a prediction on a new sample v
-        We assume that vv^T will converge to Omega
-        """
-        if not self.using_kappa:
-            # TODO : Implement if not using kappas
-            raise Exception()
-        return training_hessian_omega_from_kappa(self.rho, m, q, V, self.Delta, self.alpha, self.lambda_, self.kappa1, self.kappastar, self.gamma)

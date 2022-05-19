@@ -21,6 +21,9 @@ def logerfc(x):
 
 bernoulli_variance = np.vectorize(lambda p : 4 * p * (1. - p))
 
+def gaussian(x, mean=0, var=1):
+    return np.exp(-.5 * (x-mean)**2/var) / np.sqrt(2*np.pi*var)
+
 @np.vectorize
 def probit(x):
     return 0.5 * erfc(- x / np.sqrt(2))
@@ -62,3 +65,27 @@ def mp_integral(f : callable, gamma):
     if gamma > 1.0:
         return integral + (1.0 - 1.0 / gamma) * f(0.0)
     return integral
+
+### Data models 
+
+class ProbitDataModel:
+    def Z0(self, y, w, V):
+        return probit(y * w / np.sqrt(V))
+
+    def dZ0(self, y, w, V):
+        return y * np.exp(- w**2 / (2 * V)) / np.sqrt(2 * np.pi * V)
+
+    def f0(self, y, w, V):
+        return self.dZ0(y, w, V) / self.Z0(y, w, V)
+
+class LogisticDataModel:
+    def Z0(self, y, w, V):
+        sqrtV = np.sqrt(V)
+        return sqrtV * quad(lambda z : sigmoid(y * (z * sqrtV + w)) * np.exp(- z**2 / 2), -5.0, 5.0, limit=500)[0] / np.sqrt(2 * np.pi)
+
+    def dZ0(self, y, w, V):
+        sqrtV = np.sqrt(V)
+        return quad(lambda z : z *  sigmoid(y * (z * sqrtV + w)) * np.exp(- z**2 / 2), -5.0, 5.0, limit=500)[0] / np.sqrt(2 * np.pi)
+
+    def f0(self, y, w, V):
+        return self.dZ0(y, w, V) / self.Z0(y, w, V)

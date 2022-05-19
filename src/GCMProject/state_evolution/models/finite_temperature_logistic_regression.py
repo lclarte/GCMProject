@@ -1,10 +1,9 @@
 from math import erfc
 
 import numpy as np
-from scipy.optimize import minimize, minimize_scalar
 
 from .base_model import Model
-from ..auxiliary.logistic_integrals import ft_integrate_for_mhat, ft_integrate_for_Vhat, ft_integrate_for_Qhat, lambda_objective, lambda_objective_prime
+from ..auxiliary.ft_logistic_integrals import ft_integrate_for_mhat, ft_integrate_for_Vhat, ft_integrate_for_Qhat
 from ..auxiliary import utility
 
 class FiniteTemperatureLogisticRegression(Model):
@@ -31,11 +30,6 @@ class FiniteTemperatureLogisticRegression(Model):
         # NOTE : Don't add Delta in the data_model because the noise is not a property of the data but of the teacher
         # Delta = Sigma**2 
         self.Delta = Delta
-
-        self.update_lambda_bool = False
-        self.lamb_opt = self.lamb
-        self.lambda_min = 1e-5
-        self.lambda_max = 1.0
 
     def init_with_data_model(self, data_model):
         self.initialized = True
@@ -189,35 +183,8 @@ class FiniteTemperatureLogisticRegression(Model):
 
         return Vhat, qhat, mhat
 
-    def update_lambda(self, lambda_, Vhat, qhat, mhat):
-        objective = lambda lambda_ : lambda_objective(lambda_, self.beta, self.kappa1, self.kappastar, self.gamma, qhat, mhat, Vhat)**2
-        objective_prime = lambda lambda_ : 2.0 * lambda_objective_prime(lambda_, self.beta, self.kappa1, self.kappastar, self.gamma, qhat, mhat, Vhat) \
-                                            * lambda_objective(lambda_, self.beta, self.kappa1, self.kappastar, self.gamma, qhat, mhat, Vhat)
-        res = minimize(fun = lambda x : objective(x[0]), x0=[lambda_], bounds=[(self.lambda_min, self.lambda_max)], jac=objective_prime, tol=1e-8)
-        return res.x[0]
-        # res = minimize_scalar(objective, bounds=(self.lambda_min, self.lambda_max), tol=1e-8)
-        # return res.x
-        
-
     def update_se(self, V, q, m):
         if not self.initialized:
             raise Exception('Not initialized')
         Vhat, qhat, mhat = self._update_hatoverlaps(V, q, m)
-        if self.update_lambda_bool:
-            self.lamb_opt = self.update_lambda(self.lamb_opt, Vhat, qhat, mhat)
-            print(self.lamb_opt)
         return self._update_overlaps(Vhat, qhat, mhat)
-
-    def get_test_error(self, q, m):
-        # NOTE : Removed the noise to be like the GCM Project
-        # We still include the noise due to the mismatch because this is incompressible
-        return np.arccos(m/np.sqrt(q * self.rho))/np.pi
-
-    def get_test_loss(self, q, m):
-        return -1
-    
-    def get_calibration(self, q, m, p=0.75):
-        return -1
-
-    def get_train_loss(self, V, q, m):
-        return -1
