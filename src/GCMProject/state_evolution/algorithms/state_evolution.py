@@ -12,7 +12,7 @@ class StateEvolution(object):
     max_steps: maximum number of steps before convergence
     model: instance of model class. See /models.
     '''
-    def __init__(self, initialisation='uninformed', tolerance=1e-10, relative_tolerance=False, damping=0,
+    def __init__(self, initialisation='uninformed', tolerance=1e-10, relative_tolerance=False, damping=0.2,
                  verbose=False, max_steps=1000, stop_threshold = float('inf'), *, model):
 
         self.max_steps          = max_steps

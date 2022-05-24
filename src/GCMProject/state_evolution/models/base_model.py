@@ -80,5 +80,6 @@ class Model(object):
         self.matching        = True
         self.using_kappa     = False
         self.rho             = 1.0
+        self.projected_rho   = 1.0
         self.gamma           = 1.0
         self.effective_Delta = self.Delta
