@@ -17,6 +17,7 @@ class Model(object):
         self.initialized = False
         self.using_kappa = False
         self.mathcing    = False
+        self.type_of_data_model = 'probit'
 
     def get_info(self):
         '''
@@ -83,3 +84,9 @@ class Model(object):
         self.projected_rho   = 1.0
         self.gamma           = 1.0
         self.effective_Delta = self.Delta
+
+    def use_logistic_data_model(self):
+        if self.Delta != 0:
+            raise Exception()
+        # no additional noise
+        self.type_of_data_model = 'logit'

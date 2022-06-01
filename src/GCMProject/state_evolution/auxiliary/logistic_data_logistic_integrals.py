@@ -66,19 +66,19 @@ def logistic_integrate_for_mhat(M, Q, V, Vstar):
     bound = 10.0
     somme = 0.0
     for y in [-1, 1]:
-        somme += quad(lambda xi : np.exp(- xi**2 / 2.0) / np.sqrt(2 * np.pi) * fout(y, np.sqrt(Q) * xi, V) * LogisticDataModel().dZ0(y, M / np.sqrt(Q) * xi, Vstar), -bound, bound, limit=500)[0]
+        somme += quad(lambda xi : np.exp(- xi**2 / 2.0) / np.sqrt(2 * np.pi) * fout(y, np.sqrt(Q) * xi, V) * LogisticDataModel.dZ0(y, M / np.sqrt(Q) * xi, Vstar), -bound, bound, limit=500)[0]
     return somme
 
 def logistic_integrate_for_Qhat(M, Q, V, Vstar):
     bound = 10.0
     somme = 0.0
     for y in [-1, 1]:
-        somme += quad(lambda xi : np.exp(- xi**2 / 2.0) / np.sqrt(2 * np.pi) * fout(y, np.sqrt(Q)*xi, V)**2 * LogisticDataModel().Z0(y, M / np.sqrt(Q) * xi, Vstar), -bound, bound, limit=500)[0]
+        somme += quad(lambda xi : np.exp(- xi**2 / 2.0) / np.sqrt(2 * np.pi) * fout(y, np.sqrt(Q)*xi, V)**2 * LogisticDataModel.Z0(y, M / np.sqrt(Q) * xi, Vstar), -bound, bound, limit=500)[0]
     return somme
 
 def logistic_integrate_for_Vhat(M, Q, V, Vstar):
     bound = 10.0
     somme = 0.0
     for y in [-1, 1]:
-        somme += quad(lambda xi : np.exp(- xi**2 / 2.0) / np.sqrt(2 * np.pi) * dfout(y, np.sqrt(Q)*xi, V) * LogisticDataModel().Z0(y, M / np.sqrt(Q) * xi, Vstar), -bound, bound, limit=500)[0]
+        somme += quad(lambda xi : np.exp(- xi**2 / 2.0) / np.sqrt(2 * np.pi) * dfout(y, np.sqrt(Q)*xi, V) * LogisticDataModel.Z0(y, M / np.sqrt(Q) * xi, Vstar), -bound, bound, limit=500)[0]
     return somme

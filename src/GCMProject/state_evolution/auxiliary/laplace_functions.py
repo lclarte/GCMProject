@@ -12,3 +12,6 @@ def omega_inv_hessian_trace_random_features(kappa1, kappastar, gamma, lambda_, V
     kkstar = kappastar**2
     return utility.mp_integral(lambda x : (kk1 * x + kkstar) / (lambda_ + Vhat * (kk1 * x + kkstar)), gamma)
 
+def omega_inv_hessian_trace_matching(lambda_, Vhat):
+    return 1. / (lambda_ + Vhat)
+

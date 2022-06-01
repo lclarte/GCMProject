@@ -68,24 +68,31 @@ def mp_integral(f : callable, gamma):
 
 ### Data models 
 
+# POURQUOI SIGMA APPARAIT PAS ??? -> apparait implicitement dans V 
 class ProbitDataModel:
+    @classmethod
     def Z0(self, y, w, V):
         return probit(y * w / np.sqrt(V))
 
+    @classmethod
     def dZ0(self, y, w, V):
         return y * np.exp(- w**2 / (2 * V)) / np.sqrt(2 * np.pi * V)
-
+    
+    @classmethod
     def f0(self, y, w, V):
         return self.dZ0(y, w, V) / self.Z0(y, w, V)
 
 class LogisticDataModel:
+    @classmethod
     def Z0(self, y, w, V):
         sqrtV = np.sqrt(V)
         return sqrtV * quad(lambda z : sigmoid(y * (z * sqrtV + w)) * np.exp(- z**2 / 2), -5.0, 5.0, limit=500)[0] / np.sqrt(2 * np.pi)
 
+    @classmethod
     def dZ0(self, y, w, V):
         sqrtV = np.sqrt(V)
         return quad(lambda z : z *  sigmoid(y * (z * sqrtV + w)) * np.exp(- z**2 / 2), -5.0, 5.0, limit=500)[0] / np.sqrt(2 * np.pi)
 
+    @classmethod
     def f0(self, y, w, V):
         return self.dZ0(y, w, V) / self.Z0(y, w, V)

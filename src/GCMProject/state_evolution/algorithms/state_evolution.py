@@ -80,6 +80,7 @@ class StateEvolution(object):
             self.overlaps['self_overlap'][t+1] = self.damp(qtmp, self.overlaps['self_overlap'][t])
             self.overlaps['teacher_student'][t+1] = self.damp(mtmp, self.overlaps['teacher_student'][t])
 
+
             diff = self._get_diff(t)
 
             if self.verbose:

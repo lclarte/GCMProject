@@ -127,9 +127,9 @@ class FiniteTemperatureLogisticRegression(Model):
         # since the noise level stays the same 
         sigma = self.rho - m**2/q + self.Delta
         
-        Im = ft_integrate_for_mhat(m, q, V, sigma, self.beta)
-        Iv = ft_integrate_for_Vhat(m, q, V, sigma, self.beta)
-        Iq = ft_integrate_for_Qhat(m, q, V, sigma, self.beta)
+        Im = ft_integrate_for_mhat(m, q, V, sigma, self.beta, data_model=self.type_of_data_model)
+        Iv = ft_integrate_for_Vhat(m, q, V, sigma, self.beta, data_model=self.type_of_data_model)
+        Iq = ft_integrate_for_Qhat(m, q, V, sigma, self.beta, data_model=self.type_of_data_model)
             
         mhat = self.alpha * np.sqrt(self.gamma) * Im
         Vhat = - self.alpha * Iv

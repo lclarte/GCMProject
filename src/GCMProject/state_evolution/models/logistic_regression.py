@@ -23,7 +23,6 @@ class LogisticRegression(Model):
         self.alpha        = sample_complexity
         self.lamb         = regularisation
         self.Delta        = Delta
-        self.type_of_data_model = 'probit'
         
     def get_info(self):
         info = {
@@ -32,12 +31,6 @@ class LogisticRegression(Model):
             'lambda': self.lamb,
         }
         return info
-
-    def use_logistic_data_model(self):
-        if self.Delta != 0:
-            raise Exception()
-        # no additional noise
-        self.type_of_data_model = 'logistic'
 
     def _update_overlaps_covariance(self, Vhat, qhat, mhat):
         # should not be affected by the noise level
@@ -133,7 +126,7 @@ class LogisticRegression(Model):
             Vhat = self.alpha * ((1/V) - (1/V**2) * Iv)
             qhat = self.alpha * Iq/V**2
 
-        elif self.type_of_data_model == 'logistic':
+        elif self.type_of_data_model == 'logit':
             assert self.Delta == 0.0
             Im = logistic_integrate_for_mhat(m, q, V, Vstar)
             Iv = logistic_integrate_for_Vhat(m, q, V, Vstar)
@@ -142,7 +135,7 @@ class LogisticRegression(Model):
             Vhat = - self.alpha * Iv
             qhat = self.alpha * Iq
             
-        return Vhat, qhat, mhat
+            return Vhat, qhat, mhat
 
     def update_se(self, V, q, m):
         if not self.initialized:
