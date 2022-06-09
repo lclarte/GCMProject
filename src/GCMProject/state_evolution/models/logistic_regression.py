@@ -1,4 +1,5 @@
 from math import erfc
+from random import sample
 import numpy as np
 import scipy.stats as stats
 import scipy.integrate
@@ -20,9 +21,10 @@ class LogisticRegression(Model):
     See base_model for details on modules.
     '''
     def __init__(self, Delta = 0., *, sample_complexity, regularisation):
-        self.alpha        = sample_complexity
+        super().__init__(Delta=Delta, sample_complexity=sample_complexity)
+        # self.alpha        = sample_complexity
         self.lamb         = regularisation
-        self.Delta        = Delta
+        # self.Delta        = Delta
         
     def get_info(self):
         info = {
@@ -125,7 +127,8 @@ class LogisticRegression(Model):
             mhat = self.alpha * np.sqrt(self.gamma) * Im/V
             Vhat = self.alpha * ((1/V) - (1/V**2) * Iv)
             qhat = self.alpha * Iq/V**2
-
+            return Vhat, qhat, mhat
+            
         elif self.type_of_data_model == 'logit':
             assert self.Delta == 0.0
             Im = logistic_integrate_for_mhat(m, q, V, Vstar)

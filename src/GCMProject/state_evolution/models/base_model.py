@@ -11,13 +11,14 @@ class Model(object):
     regularisation: ridge penalty coefficient
     data_model: data_model instance. See /data_model/
     '''
+
     def __init__(self, *, sample_complexity, Delta):
         self.alpha = sample_complexity
         self.Delta = Delta
         self.initialized = False
         self.using_kappa = False
-        self.mathcing    = False
-        self.type_of_data_model = 'probit'
+        self.matching    = False
+        self.use_probit_data_model()
 
     def get_info(self):
         '''
@@ -90,3 +91,6 @@ class Model(object):
             raise Exception()
         # no additional noise
         self.type_of_data_model = 'logit'
+
+    def use_probit_data_model(self):
+        self.type_of_data_model = 'probit'

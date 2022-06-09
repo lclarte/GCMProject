@@ -1,4 +1,6 @@
 from typing import List
+
+from zmq import EVENT_CLOSE_FAILED
 import numpy as np
 import scipy.optimize as opt4
 from scipy.optimize import minimize_scalar, root_scalar
@@ -86,13 +88,85 @@ class LogisticDataModel:
     @classmethod
     def Z0(self, y, w, V):
         sqrtV = np.sqrt(V)
-        return sqrtV * quad(lambda z : sigmoid(y * (z * sqrtV + w)) * np.exp(- z**2 / 2), -5.0, 5.0, limit=500)[0] / np.sqrt(2 * np.pi)
+        # With the sqrtV, it doesn't look normalized
+        # return sqrtV * quad(lambda z : sigmoid(y * (z * sqrtV + w)) * np.exp(- z**2 / 2), -5.0, 5.0, limit=500)[0] / np.sqrt(2 * np.pi)
+        # NOTE : Below, normalized partition function (so it defines an expectation)
+        return quad(lambda z : sigmoid(y * (z * sqrtV + w)) * np.exp(- z**2 / 2), -5.0, 5.0, limit=500)[0] / np.sqrt(2 * np.pi)
 
     @classmethod
-    def dZ0(self, y, w, V):
-        sqrtV = np.sqrt(V)
-        return quad(lambda z : z *  sigmoid(y * (z * sqrtV + w)) * np.exp(- z**2 / 2), -5.0, 5.0, limit=500)[0] / np.sqrt(2 * np.pi)
+    def dZ0(self, y, w, V, V_threshold = 1e-10):
+        if V > V_threshold:
+            sqrtV = np.sqrt(V)
+            # return quad(lambda z : z *  sigmoid(y * (z * sqrtV + w)) * np.exp(- z**2 / 2), -5.0, 5.0, limit=500)[0] / np.sqrt(2 * np.pi)
+            return quad(lambda z : z *  sigmoid(y * (z * sqrtV + w)) * np.exp(- z**2 / 2), -5.0, 5.0, limit=500)[0] / np.sqrt(2 * np.pi * V)
+        else:
+            return sigmoid(y * w)
 
     @classmethod
     def f0(self, y, w, V):
         return self.dZ0(y, w, V) / self.Z0(y, w, V)
+
+class PseudoBayesianDataModel:
+    @classmethod
+    def p_out(self, x):
+        if x > -10:
+            return np.log(1. + np.exp(- x))
+        else:
+            return -x
+
+    @classmethod
+    def likelihood(self, z, beta):
+        return np.exp(-beta * self.p_out(z))
+
+    @classmethod
+    def Z0(self, y, w, V, beta = 1.0, bound = 5.0, threshold = 1e-10):
+        if V > threshold:
+            sqrtV = np.sqrt(V)
+            return quad(lambda z : self.likelihood(y * (z * sqrtV + w), beta), -bound, bound, limit=500)[0] / np.sqrt(2 * np.pi)
+        else:
+            return np.exp(- beta * self.p_out(y * w))
+
+    @classmethod
+    def dZ0(self, y, w, V, beta = 1.0, bound = 5.0):
+        sqrtV = np.sqrt(V)
+        return quad(lambda z : z * self.likelihood(y * (z * sqrtV + w), beta), -bound, bound, limit=500)[0] / np.sqrt(2 * np.pi * V)
+
+    @classmethod
+    def ddZ0(self, y, w, V, beta = 1.0, bound = 5.0, threshold = 1e-10, Z0 = None):
+        Z0 = Z0 or self.Z0(y, w, V, beta, bound, threshold)
+        sqrtV = np.sqrt(V)
+        to_integrate = lambda z : z**2 * np.exp(-beta * self.p_out(y * (z * sqrtV + w))) * np.exp(-z**2 / 2.) / np.sqrt(2 * np.pi)
+        # return - Zerm / V + quad(to_integrate, -bound, bound, limit=500)[0] / sqrtV
+        return - Z0 / V + quad(to_integrate, -bound, bound, limit=500)[0] / V
+
+
+    @classmethod
+    def f0(self, y, w, V, beta = 1.0, bound = 5.0):
+        return self.dZ0(y, w, V, beta, bound) / self.Z0(y, w, V, beta, bound)
+
+class NormalizedPseudoBayesianDataModel:
+    @classmethod
+    def p_out(self, x):
+        if x > -10:
+            return np.log(1. + np.exp(- x))
+        else:
+            return -x
+
+    @classmethod
+    def likelihood(self, z, beta):
+        return np.exp(-beta * self.p_out(z))
+
+    @classmethod
+    def Z0(self, y, w, V, beta = 1.0, bound = 5.0):
+        sqrtV = np.sqrt(V)
+        return quad(lambda z : self.likelihood(y * (z * sqrtV + w), beta) / (self.likelihood(z * sqrtV + w, beta) + self.likelihood(- (z * sqrtV + w), beta)), -bound, bound, limit=500)[0] / np.sqrt(2 * np.pi)
+
+    @classmethod
+    def dZ0(self, y, w, V, beta = 1.0, bound = 5.0):
+        sqrtV = np.sqrt(V)
+        return quad(lambda z : z * self.likelihood(y * (z * sqrtV + w), beta) / (self.likelihood(z * sqrtV + w, beta) + self.likelihood(- (z * sqrtV + w), beta)), -bound, bound, limit=500)[0] / np.sqrt(2 * np.pi * V)
+
+    @classmethod
+    def f0(self, y, w, V, beta = 1.0, bound = 5.0):
+        return self.dZ0(y, w, V, beta, bound) / self.Z0(y, w, V, beta, bound)
+

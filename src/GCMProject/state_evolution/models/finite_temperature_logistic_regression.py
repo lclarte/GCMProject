@@ -1,4 +1,5 @@
 from math import erfc
+from random import sample
 
 import numpy as np
 
@@ -19,17 +20,17 @@ class FiniteTemperatureLogisticRegression(Model):
             - beta : inv. temperature
         The energy function here is e^{beta * (loss + lambda / 2 * | w |^2)}
         """
-        self.initialized= False
-        self.alpha      = sample_complexity
+        super(FiniteTemperatureLogisticRegression, self).__init__(Delta = Delta, sample_complexity = sample_complexity)
         self.lamb       = regularisation
         # when we opt the lambda for evidence
         self.beta       = beta
         self.rho        = 1.0
-        self.matching   = False
+        # maximize lambda for the "evidence"
+        self.optimize_lambda = False
 
-        # NOTE : Don't add Delta in the data_model because the noise is not a property of the data but of the teacher
-        # Delta = Sigma**2 
-        self.Delta = Delta
+    def set_optimize_lambda(self, val):
+        assert self.beta == 1.0 and self.matching == True
+        self.optimize_lambda = val
 
     def get_info(self):
         info = {
@@ -84,10 +85,10 @@ class FiniteTemperatureLogisticRegression(Model):
         q = IQ
         return V, q, m
 
-    def _update_overlaps_matching(self, vhat, qhat, mhat, lamb):
-        V = 1. / (lamb + vhat)
-        q = (mhat**2 + qhat) / (lamb + vhat)**2
-        m = mhat / (lamb + vhat)
+    def _update_overlaps_matching(self, vhat, qhat, mhat, lamb_beta):
+        V = 1. / (lamb_beta + vhat)
+        q = (mhat**2 + qhat) / (lamb_beta + vhat)**2
+        m = mhat / (lamb_beta + vhat)
         return V, q, m
 
     def _update_overlaps_covariance(self, Vhat, qhat, mhat, lamb):
@@ -141,4 +142,7 @@ class FiniteTemperatureLogisticRegression(Model):
         if not self.initialized:
             raise Exception('Not initialized')
         Vhat, qhat, mhat = self._update_hatoverlaps(V, q, m)
-        return self._update_overlaps(Vhat, qhat, mhat)
+        if self.optimize_lambda:
+            self.lamb = Vhat**2 / (mhat**2 + qhat - Vhat)
+        V, q, m = self._update_overlaps(Vhat, qhat, mhat)
+        return V, q, m

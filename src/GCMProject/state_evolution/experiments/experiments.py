@@ -1,7 +1,7 @@
 from ..data_models.custom import Custom
 from ..models.ridge_regression import RidgeRegression
 from ..models.logistic_regression import LogisticRegression
-from ..models.bayes_optimal_probit import BayesOptimalProbit
+from ..models.bayes_optimal import BayesOptimal
 from ..algorithms.state_evolution import StateEvolution
 from ..models.l2_classification import L2Classification
 

@@ -1,3 +1,4 @@
+from random import sample
 from re import S
 from GCMProject.state_evolution.auxiliary import ft_logistic_integrals
 import numpy as np
@@ -15,7 +16,7 @@ def sigmoid(x):
 def sigmoid_inv(y):
     return np.log(y/(1-y))
 
-class BayesOptimalProbit(Model):
+class BayesOptimal(Model):
     '''
     Implements updates for logistic regression task.
     See base_model for details on modules.
@@ -29,9 +30,7 @@ class BayesOptimalProbit(Model):
         arguments: 
             - Delta : variance of the noise 
         """
-        self.alpha = sample_complexity
-        self.Delta = Delta
-        self.initialized = False
+        super(BayesOptimal, self).__init__(sample_complexity=sample_complexity, Delta=Delta)
 
     def init_with_data_model(self, data_model):
         super().init_with_data_model(data_model)
@@ -93,7 +92,7 @@ class BayesOptimalProbit(Model):
             somme = 0.0
             # not sure 
             for y in [-1.0, 1.0]:
-                somme += quad(lambda xi : np.exp(- xi**2 / 2.0) / np.sqrt(2 * np.pi) * ft_logistic_integrals.ft_logistic_ferm(y, np.sqrt(q)*xi, V, 1.0)**2  * utility.LogisticDataModel.Z0(y, m / np.sqrt(q) * xi, Vstar), -5.0, 5.0, limit=500)[0]  
+                somme += quad(lambda xi : np.exp(- xi**2 / 2.0) / np.sqrt(2 * np.pi) * ft_logistic_integrals.ft_logistic_ferm(y, np.sqrt(q)*xi, V, 1.0)**2  * utility.LogisticDataModel.Z0(y, m / np.sqrt(q) * xi, Vstar), -10.0, 10.0, limit=500)[0]  
             Vhat = mhat = qhat = (self.alpha * self.gamma) * somme
             return Vhat, qhat, mhat
         print(self.type_of_data_model)

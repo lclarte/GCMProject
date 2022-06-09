@@ -96,9 +96,13 @@ def Integrand_training_loss_minus_logistic(ξ, M, Q, V, Vstar):
     return (1 - erf(ωstar/np.sqrt(2*Vstar))) * l_minus
 
 def training_loss_logistic(M, Q, V, Vstar):
+    """
+    Returns the training ERROR (and not the loss ...) for ERM
+    """
     I1 = quad(lambda ξ: Integrand_training_loss_plus_logistic(ξ, M, Q, V, Vstar) * utility.gaussian(ξ), -10, 10, limit=500)[0]
     I2 = quad(lambda ξ: Integrand_training_loss_minus_logistic(ξ, M, Q, V, Vstar) * utility.gaussian(ξ), -10, 10, limit=500)[0]
     return (1/2)*(I1 + I2)
+
 
 ### ==== to optimize for lambda to maximize the evidence 
 

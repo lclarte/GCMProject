@@ -13,19 +13,25 @@ def p_out(x):
     else:
         return -x
 
-def ft_logistic_Z(y, w, V, beta, bound = 5.0):
-    sqrtV = np.sqrt(V)
-    return sqrtV * quad(lambda z : np.exp(-beta * p_out(y * (z * sqrtV + w))) * np.exp(- z**2 / 2), -bound, bound, limit=500)[0]
+def ft_logistic_Z(y, w, V, beta, bound = 5.0, threshold = 1e-8):
+    if V > threshold:
+        sqrtV = np.sqrt(V)
+        # return sqrtV * quad(lambda z : np.exp(-beta * p_out(y * (z * sqrtV + w))) * np.exp(- z**2 / 2), -bound, bound, limit=500)[0]
+        return quad(lambda z : np.exp(-beta * p_out(y * (z * sqrtV + w))) * np.exp(- z**2 / 2), -bound, bound, limit=500)[0] / np.sqrt(2 * np.pi)
+    else:
+        return np.exp(- beta * p_out(y * w))
 
-def ft_logistic_dwZ(y, w, V, beta, bound = 5.0):
+def ft_logistic_dwZ(y, w, V, beta, bound = 5.0, threshold = 1e-10):
     sqrtV = np.sqrt(V)
-    return quad(lambda z : z * np.exp(-beta * p_out(y * (z * sqrtV + w))) * np.exp(- z**2 / 2), -bound, bound, limit=500)[0] 
+    # return quad(lambda z : z * np.exp(-beta * p_out(y * (z * sqrtV + w))) * np.exp(- z**2 / 2), -bound, bound, limit=500)[0]
+    return quad(lambda z : z * np.exp(-beta * p_out(y * (z * sqrtV + w))) * np.exp(- z**2 / 2), -bound, bound, limit=500)[0] / np.sqrt(2 * np.pi * V)
 
 def ft_logistic_ddwZ(y, w, V, beta, Zerm = None, bound = 5.0):
     Zerm = Zerm or ft_logistic_Z(y, w, V, beta, bound)
     sqrtV = np.sqrt(V)
-    to_integrate = lambda z : z**2 * np.exp(-beta * p_out(y * (z * sqrtV + w))) * np.exp(-z**2 / 2.)
-    return - Zerm / V + quad(to_integrate, -bound, bound, limit=500)[0] / sqrtV
+    to_integrate = lambda z : z**2 * np.exp(-beta * p_out(y * (z * sqrtV + w))) * np.exp(-z**2 / 2.) / np.sqrt(2 * np.pi)
+    # return - Zerm / V + quad(to_integrate, -bound, bound, limit=500)[0] / sqrtV
+    return - Zerm / V + quad(to_integrate, -bound, bound, limit=500)[0] / V
 
 def ft_logistic_ferm(y, w, V, beta, bound = 5.0):
     return ft_logistic_dwZ(y, w, V, beta, bound) / ft_logistic_Z(y, w, V, beta, bound)
@@ -43,7 +49,7 @@ def ft_integrate_for_mhat(M, Q, V, Vstar, beta, data_model = 'probit'):
     if data_model == 'logit':
         current_data_model = LogisticDataModel
     for y in [-1, 1]:
-            somme += quad(lambda xi : np.exp(- xi**2 / 2.0) / np.sqrt(2 * np.pi) * ft_logistic_ferm(y, np.sqrt(Q)*xi, V, beta) * current_data_model.dZ0(y, M / np.sqrt(Q) * xi, Vstar), -bound, bound, limit=500)[0]
+        somme += quad(lambda xi : np.exp(- xi**2 / 2.0) / np.sqrt(2 * np.pi) * ft_logistic_ferm(y, np.sqrt(Q)*xi, V, beta) * current_data_model.dZ0(y, M / np.sqrt(Q) * xi, Vstar), -bound, bound, limit=500)[0]
     return somme
 
 def ft_integrate_for_Qhat(M, Q, V, Vstar, beta, data_model = 'probit'):
@@ -57,7 +63,7 @@ def ft_integrate_for_Qhat(M, Q, V, Vstar, beta, data_model = 'probit'):
     return somme
 
 def ft_integrate_for_Vhat(M, Q, V, Vstar, beta, data_model = 'probit'):
-    bound = 5.0
+    bound = 10.0
     somme = 0.0
     current_data_model = ProbitDataModel
     if data_model == 'logit':
@@ -65,5 +71,3 @@ def ft_integrate_for_Vhat(M, Q, V, Vstar, beta, data_model = 'probit'):
     for y in [-1, 1]:
         somme += quad(lambda xi : np.exp(- xi**2 / 2.0) / np.sqrt(2 * np.pi) * ft_logistic_dferm(y, np.sqrt(Q)*xi, V, beta) * current_data_model.Z0(y, M / np.sqrt(Q) * xi, Vstar), -bound, bound, limit=500)[0]
     return somme
-
-### Using the logistic data model

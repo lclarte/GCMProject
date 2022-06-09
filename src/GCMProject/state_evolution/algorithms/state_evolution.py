@@ -38,7 +38,7 @@ class StateEvolution(object):
         }
 
         if self.init == 'uninformed':
-            self.overlaps['variance'][0] = 100
+            self.overlaps['variance'][0] = 1.0 - 0.001
             self.overlaps['self_overlap'][0] = 0.001
             self.overlaps['teacher_student'][0] = 0.001
 
@@ -56,6 +56,14 @@ class StateEvolution(object):
         diff += np.abs(self.overlaps['teacher_student'][t+1]-self.overlaps['teacher_student'][t])
 
         return diff
+
+    def _get_relative_diff(self, t):
+        diff = np.abs(self.overlaps['variance'][t+1]-self.overlaps['variance'][t]) / self.overlaps['variance'][t]
+        diff += np.abs(self.overlaps['self_overlap'][t+1]-self.overlaps['self_overlap'][t]) / self.overlaps['self_overlap'][t]
+        diff += np.abs(self.overlaps['teacher_student'][t+1]-self.overlaps['teacher_student'][t]) / np.abs(self.overlaps['teacher_student'][t])
+
+        return diff
+
 
     def damp(self, new, old):
         '''
@@ -82,13 +90,14 @@ class StateEvolution(object):
 
 
             diff = self._get_diff(t)
+            relative_diff = self._get_relative_diff(t)
 
             if self.verbose:
                 print('t: {}, diff: {}, self overlaps: {}, teacher-student overlap: {}, time : {}'.format(t, diff, self.overlaps['self_overlap'][t+1], self.overlaps['teacher_student'][t+1], time_diff))
-            if self.relative_tolerance == True:
-                if np.abs(self.overlaps['self_overlap'][t+1] - self.overlaps['self_overlap'][t]) / self.overlaps['self_overlap'][t] < self.tol:
-                    self.status = 1
-                    break
+            
+            if self.relative_tolerance == True and relative_diff < self.tol:
+                self.status = 1
+                break
 
             if self.relative_tolerance == False and diff < self.tol:
             # If iterations converge, set status = 1
