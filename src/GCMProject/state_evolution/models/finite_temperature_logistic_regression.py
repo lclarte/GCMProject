@@ -1,10 +1,13 @@
+# TODO : Adapter ce code pour avoir la likelihood normalisee 
+
 from math import erfc
 from random import sample
 
 import numpy as np
+from scipy.integrate import quad
 
 from .base_model import Model
-from ..auxiliary.ft_logistic_integrals import ft_integrate_for_mhat, ft_integrate_for_Vhat, ft_integrate_for_Qhat
+from ..auxiliary.ft_logistic_integrals import ft_integrate_for_mhat, ft_integrate_for_Vhat, ft_integrate_for_Qhat, ft_integrate_derivative_beta
 from ..auxiliary import utility
 
 class FiniteTemperatureLogisticRegression(Model):
@@ -14,7 +17,7 @@ class FiniteTemperatureLogisticRegression(Model):
     '''
     # NOTE : Code sale. On va faire un boolean qui si est mis a vrai, va override tous les autres parametres 
     # Dans le cas ou on est pas overparametrized
-    def __init__(self, Delta = 0., *, sample_complexity, beta, regularisation):
+    def __init__(self, *, sample_complexity, beta, regularisation, Delta):
         """
         arguments : 
             - beta : inv. temperature
@@ -22,15 +25,33 @@ class FiniteTemperatureLogisticRegression(Model):
         """
         super(FiniteTemperatureLogisticRegression, self).__init__(Delta = Delta, sample_complexity = sample_complexity)
         self.lamb       = regularisation
-        # when we opt the lambda for evidence
         self.beta       = beta
+
+        # record the original values if we optimize beta, lambda_
+        self.original_lamb = self.lamb
+        self.original_beta = self.beta
+
         self.rho        = 1.0
         # maximize lambda for the "evidence"
         self.optimize_lambda = False
+        self.optimize_beta   = False
+        self.set_bool_normalized_data_model(False)
+
+        self.optimize_lambda_tolerance = 1e-4
 
     def set_optimize_lambda(self, val):
-        assert self.beta == 1.0 and self.matching == True
+        # On garde ca mais on va changer la fonction qui optimise 
         self.optimize_lambda = val
+
+    def set_optimize_beta(self, val):
+        # On garde ca mais on va changer la fonction qui optimise 
+        self.optimize_beta = val
+
+    def set_bool_normalized_data_model(self, val : bool):
+        if val:
+            self.student_data_model = utility.NormalizedPseudoBayesianDataModel
+        else:
+            self.student_data_model = utility.PseudoBayesianDataModel
 
     def get_info(self):
         info = {
@@ -114,23 +135,23 @@ class FiniteTemperatureLogisticRegression(Model):
         """
         Update of overlaps is NOT the same as logistic regression because here we have exp^{lambda ... }
         """
-        lamb = self.lamb * self.beta
+        lamb_beta = self.lamb * self.beta
         
         if self.matching:
-            return self._update_overlaps_matching(vhat, qhat, mhat, lamb)
+            return self._update_overlaps_matching(vhat, qhat, mhat, lamb_beta)
         if self.using_kappa:
-            return self._update_overlaps_spectrum(vhat, qhat, mhat, lamb)
+            return self._update_overlaps_spectrum(vhat, qhat, mhat, lamb_beta)
         else:
-            return self._update_overlaps_covariance(vhat, qhat, mhat, lamb)
+            return self._update_overlaps_covariance(vhat, qhat, mhat, lamb_beta)
 
     def _update_hatoverlaps(self, V, q, m):
         # the overparametrization does not change the hat overlap update so we don't have to change this 
         # since the noise level stays the same 
         sigma = self.rho - m**2/q + self.Delta
         
-        Im = ft_integrate_for_mhat(m, q, V, sigma, self.beta, data_model=self.type_of_data_model)
-        Iv = ft_integrate_for_Vhat(m, q, V, sigma, self.beta, data_model=self.type_of_data_model)
-        Iq = ft_integrate_for_Qhat(m, q, V, sigma, self.beta, data_model=self.type_of_data_model)
+        Im = ft_integrate_for_mhat(m, q, V, sigma, self.beta, data_model=self.str_teacher_data_model)
+        Iv = ft_integrate_for_Vhat(m, q, V, sigma, self.beta, data_model=self.str_teacher_data_model)
+        Iq = ft_integrate_for_Qhat(m, q, V, sigma, self.beta, data_model=self.str_teacher_data_model)
             
         mhat = self.alpha * np.sqrt(self.gamma) * Im
         Vhat = - self.alpha * Iv
@@ -138,11 +159,98 @@ class FiniteTemperatureLogisticRegression(Model):
 
         return Vhat, qhat, mhat
 
+    ### FUNCTIONS TO OPTIMIZE BETA, LAMBDA FOR EVIDENCE
+    # We used the normalized likelihood to optimize the parameters of the NON-overparametrized likelihood
+
+    def psi_w(self, Vhat, qhat, mhat, beta_lambda):
+        if self.matching:
+            return - 0.5 * np.log(beta_lambda + Vhat) + 0.5 * (mhat**2 + qhat) / (beta_lambda + Vhat)
+        elif self.using_kappa:
+            kk1, kkstar = self.kappa1**2, self.kappastar**2
+            return - 0.5 * utility.mp_integral(lambda x : np.log(beta_lambda + Vhat * (kk1 * x + kkstar)), self.gamma) + 0.5 * utility.mp_integral(lambda x : (mhat * kk1 * x + qhat * (kk1 * x + kkstar)) / (beta_lambda + Vhat * (kk1 * x + kkstar)), self.gamma)
+        else:
+            # TODO : This
+            return NotImplementedError
+
+    def psi_y(self, V, q, m, beta):
+        bound = 5.0
+        teacher_data_model = {'logit' : utility.LogisticDataModel, 'probit' : utility.ProbitDataModel}[self.str_teacher_data_model]
+        somme = 0.0
+        Vstar = self.rho - m**2 / q + self.Delta
+        for y in [-1.0, 1.0]:
+            somme += quad(lambda xi : teacher_data_model.Z0(y, m / np.sqrt(q) * xi, Vstar) * np.log(self.student_data_model.Z0(y, np.sqrt(q) * xi, V, beta)) * np.exp(- xi**2 / 2.0) / np.sqrt(2 * np.pi), -bound, bound)[0]
+        return somme
+
+    def get_log_partition(self, V, q, m, Vhat, qhat, mhat, beta, lambda_):
+        """
+        To get the evidence, take the (e.g. unnormalized) likelihood -> log_evidence + 0.5 * log(beta * lambda) 
+        """
+        return self.psi_w(Vhat, qhat, mhat, beta * lambda_) + self.alpha * self.psi_y(V, q, m, self.beta) - np.sqrt(self.gamma) * m * mhat + 0.5 * (q * Vhat - qhat * V) + 0.5 * V * Vhat
+
+    def derivative_psi_w_beta_lambda(self, Vhat, qhat, mhat, beta_lambda):
+        """
+        returns the derivative of Psi_w (the prior term in the free energy) w.r.t lambda_ * beta
+        """
+        if self.matching:
+            return - 0.5 / (beta_lambda + Vhat) - 0.5 * (mhat**2 + qhat) / (beta_lambda + Vhat)**2
+        elif self.using_kappa:
+            kk1, kkstar = self.kappa1**2, self.kappastar**2
+            return - 0.5 * utility.mp_integral(lambda x : 1.0 / (beta_lambda + Vhat * (kk1 * x + kkstar)), self.gamma) \
+                   - 0.5 * utility.mp_integral(lambda x : kk1 * mhat**2 * x + qhat * (kk1 * x + kkstar) / (beta_lambda + Vhat * (kk1 * x + kkstar))**2 , self.gamma)
+        else:
+            # use the matrices
+            # TODO : this
+            raise NotImplementedError
+
+    def _optimize_lambda_evidence(self, Vhat, qhat, mhat, beta, lambda_):
+        # if self.student_data_model != utility.NormalizedPseudoBayesianDataModel:
+        #     raise Exception()
+        # reminder that Delta must be 0 for the logit data model ! 
+        d_psi_w = self.derivative_psi_w_beta_lambda(Vhat, qhat, mhat, beta * lambda_)
+        return - 0.5 / ( beta * d_psi_w )
+        
+    def _optimize_beta_evidence(self, V, q, m, Vhat, qhat, mhat, beta, lambda_, alpha):
+        """
+        NOTE : Does not work ATM
+        Returns the new beta
+        """
+        if self.student_data_model != utility.NormalizedPseudoBayesianDataModel:
+            raise Exception()
+        
+        Vstar   = self.rho - m**2 / q + self.Delta
+        d_psi_y = ft_integrate_derivative_beta(V, q, m, Vstar, beta)
+        d_psi_w = self.derivative_psi_w_beta_lambda(Vhat, qhat, mhat, beta * lambda_)
+        return  - 0.5 / (lambda_ * d_psi_w + alpha * d_psi_y)
+
+    #######################
+
     def update_se(self, V, q, m):
+        # optimization of beta not done at the moment
+        assert not self.optimize_beta
         if not self.initialized:
             raise Exception('Not initialized')
         Vhat, qhat, mhat = self._update_hatoverlaps(V, q, m)
-        if self.optimize_lambda:
-            self.lamb = Vhat**2 / (mhat**2 + qhat - Vhat)
+
+        new_lambda = self.lamb
+
+        if self.optimize_lambda and self.beta == 1.0: 
+            if self.matching:
+                new_lambda = Vhat**2 / (mhat**2 + qhat - Vhat)
+            else:
+                while True:
+                    prev_lambda = new_lambda
+                    new_lambda  = self._optimize_lambda_evidence(Vhat, qhat, mhat, self.beta, prev_lambda)
+                    if np.abs(new_lambda - prev_lambda) < self.optimize_lambda_tolerance:
+                        break
+        
+        self.lamb = new_lambda
+
         V, q, m = self._update_overlaps(Vhat, qhat, mhat)
+
+        if np.isnan(V) or np.isnan(m) or np.isnan(q):
+            raise Exception(f'The overlaps are NaN !')
+
+        # record the overlaps for easier access 
+        self.V, self.q, self.m, self.Vhat, self.qhat, self.mhat = V, q, m, Vhat, qhat, mhat
+
         return V, q, m

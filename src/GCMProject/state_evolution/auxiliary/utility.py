@@ -107,6 +107,9 @@ class LogisticDataModel:
         return self.dZ0(y, w, V) / self.Z0(y, w, V)
 
 class PseudoBayesianDataModel:
+    """
+    The sign in p_out is wrong but it's ok because
+    """
     @classmethod
     def p_out(self, x):
         if x > -10:
@@ -122,51 +125,96 @@ class PseudoBayesianDataModel:
     def Z0(self, y, w, V, beta = 1.0, bound = 5.0, threshold = 1e-10):
         if V > threshold:
             sqrtV = np.sqrt(V)
-            return quad(lambda z : self.likelihood(y * (z * sqrtV + w), beta), -bound, bound, limit=500)[0] / np.sqrt(2 * np.pi)
+            return quad(lambda z : self.likelihood(y * (z * sqrtV + w), beta) * np.exp(- z**2 / 2), -bound, bound, limit=500)[0] / np.sqrt(2 * np.pi)
         else:
-            return np.exp(- beta * self.p_out(y * w))
+            return self.likelihood(y * w, beta)
 
     @classmethod
     def dZ0(self, y, w, V, beta = 1.0, bound = 5.0):
         sqrtV = np.sqrt(V)
-        return quad(lambda z : z * self.likelihood(y * (z * sqrtV + w), beta), -bound, bound, limit=500)[0] / np.sqrt(2 * np.pi * V)
+        return quad(lambda z : z * self.likelihood(y * (z * sqrtV + w), beta) * np.exp(- z**2 / 2), -bound, bound, limit=500)[0] / np.sqrt(2 * np.pi * V)
 
     @classmethod
     def ddZ0(self, y, w, V, beta = 1.0, bound = 5.0, threshold = 1e-10, Z0 = None):
         Z0 = Z0 or self.Z0(y, w, V, beta, bound, threshold)
         sqrtV = np.sqrt(V)
-        to_integrate = lambda z : z**2 * np.exp(-beta * self.p_out(y * (z * sqrtV + w))) * np.exp(-z**2 / 2.) / np.sqrt(2 * np.pi)
+        to_integrate = lambda z : z**2 * self.likelihood(y * (z * sqrtV + w), beta) * np.exp(-z**2 / 2.) / np.sqrt(2 * np.pi)
         # return - Zerm / V + quad(to_integrate, -bound, bound, limit=500)[0] / sqrtV
         return - Z0 / V + quad(to_integrate, -bound, bound, limit=500)[0] / V
-
 
     @classmethod
     def f0(self, y, w, V, beta = 1.0, bound = 5.0):
         return self.dZ0(y, w, V, beta, bound) / self.Z0(y, w, V, beta, bound)
+
+    @classmethod
+    def df0(self, y, w, V, beta = 1.0, bound = 5.0):
+        z0     = self.Z0(y, w, V, beta, bound)
+        dz0    = self.dZ0(y, w, V, beta, bound)
+        ddz0   = self.ddZ0(y, w, V, beta, bound, Z0 = z0)
+        return ddz0 / z0 - (dz0 / z0)**2
+
+    # Derivative w.r.t beta, to optimmize the hyper-parameters beta, lambda
+    def dbetaZ0(self, y, w, V, beta = 1.0, bound = 5.0):
+        sqrtV  = np.sqrt(V)
+        return quad(lambda z : self.p_out(y * (z * sqrtV + w)) * self.likelihood(y * (z * sqrtV + w), beta) * np.exp(-z**2 / 2.), -bound, bound, limit=500)[0] / np.sqrt(2 * np.pi)
 
 class NormalizedPseudoBayesianDataModel:
     @classmethod
     def p_out(self, x):
-        if x > -10:
-            return np.log(1. + np.exp(- x))
-        else:
-            return -x
+        return np.log( sigmoid(x) )
 
     @classmethod
     def likelihood(self, z, beta):
-        return np.exp(-beta * self.p_out(z))
+        return np.exp( beta * self.p_out(z) )
 
     @classmethod
-    def Z0(self, y, w, V, beta = 1.0, bound = 5.0):
-        sqrtV = np.sqrt(V)
-        return quad(lambda z : self.likelihood(y * (z * sqrtV + w), beta) / (self.likelihood(z * sqrtV + w, beta) + self.likelihood(- (z * sqrtV + w), beta)), -bound, bound, limit=500)[0] / np.sqrt(2 * np.pi)
+    def normalized_likelihood(self, z, beta):
+        # the below expression is correct but can be simplified
+        # return self.likelihood(z, beta) / (self.likelihood(z, beta) + self.likelihood(-z, beta))
+        return sigmoid(beta * np.log(sigmoid(z) / sigmoid(-z)) )
 
     @classmethod
-    def dZ0(self, y, w, V, beta = 1.0, bound = 5.0):
-        sqrtV = np.sqrt(V)
-        return quad(lambda z : z * self.likelihood(y * (z * sqrtV + w), beta) / (self.likelihood(z * sqrtV + w, beta) + self.likelihood(- (z * sqrtV + w), beta)), -bound, bound, limit=500)[0] / np.sqrt(2 * np.pi * V)
+    def Z0(self, y, w, V, beta = 1.0, bound = 10.0):
+        sqrtV  = np.sqrt(V)
+        return quad(lambda z : self.normalized_likelihood(y * (z * sqrtV + w) * np.exp(-z**2 / 2.), beta), -bound, bound, limit=500)[0] / np.sqrt(2 * np.pi)
 
     @classmethod
-    def f0(self, y, w, V, beta = 1.0, bound = 5.0):
+    def dZ0(self, y, w, V, beta = 1.0, bound = 10.0):
+        sqrtV  = np.sqrt(V)
+        return quad(lambda z : z * self.normalized_likelihood(y * (z * sqrtV + w), beta)* np.exp(-z**2 / 2.), -bound, bound, limit=500)[0] / np.sqrt(2 * np.pi * V)
+
+    @classmethod
+    def ddZ0(self, y, w, V, beta = 1.0, bound = 10.0, threshold = 1e-10, Z0 = None):
+        Z0           = Z0 or self.Z0(y, w, V, beta, bound, threshold)
+        sqrtV        = np.sqrt(V)
+        to_integrate = lambda z : z**2 * self.normalized_likelihood(y * (z * sqrtV + w), beta) * np.exp(-z**2 / 2.) / np.sqrt(2 * np.pi)
+        # return - Zerm / V + quad(to_integrate, -bound, bound, limit=500)[0] / sqrtV
+        return - Z0 / V + quad(to_integrate, -bound, bound, limit=500)[0] / V
+
+    @classmethod
+    def f0(self, y, w, V, beta = 1.0, bound = 10.0):
         return self.dZ0(y, w, V, beta, bound) / self.Z0(y, w, V, beta, bound)
 
+    @classmethod
+    def df0(self, y, w, V, beta = 1.0, bound = 10.0):
+        z0   = self.Z0(y, w, V, beta, bound)
+        dz0  = self.dZ0(y, w, V, beta, bound)
+        ddz0 = self.ddZ0(y, w, V, beta, bound, Z0 = z0)
+        value = ddz0 / z0 - (dz0 / z0)**2
+        if np.isnan(value):
+            raise Exception(f'z0, dz0, ddz0 are {z0, dz0, ddz0} but df0 is Nan !')
+
+    @classmethod
+    def dbetaZ0(self, y, w, V, beta = 1.0, bound = 10.0, threshold = 1e-10):
+        # Derivative w.r.t beta, to optimmize the hyper-parameters
+        def to_integrate(z):
+            lf         = z * sqrtV + w
+            likelihood = self.normalized_likelihood(y * lf, beta)
+            # the likel. is a sigmoid hence the shape of derivative 
+            return np.log(sigmoid(y * lf) / sigmoid(- y * lf)) * likelihood * (1.0 - likelihood)
+
+        if V > threshold:
+            sqrtV  = np.sqrt(V)
+            return quad(lambda z : to_integrate(z) * np.exp(- z**2 / 2.0), -bound, bound)[0] / np.sqrt(2 * np.pi)
+        else:
+            return to_integrate(0)

@@ -120,7 +120,7 @@ class LogisticRegression(Model):
         # taken into account in the integrals !
         # NOTE : Ici on multuplied par self.gamma = d / p
         # dans le code originel, gamma = p / d donc ils divisent par sqrt(gamma)
-        if self.type_of_data_model == 'probit':
+        if self.str_teacher_data_model == 'probit':
             Im = integrate_for_mhat(m, q, V, Vstar + self.Delta)
             Iv = integrate_for_Vhat(m, q, V, Vstar + self.Delta)
             Iq = integrate_for_Qhat(m, q, V, Vstar + self.Delta)
@@ -129,7 +129,7 @@ class LogisticRegression(Model):
             qhat = self.alpha * Iq/V**2
             return Vhat, qhat, mhat
             
-        elif self.type_of_data_model == 'logit':
+        elif self.str_teacher_data_model == 'logit':
             assert self.Delta == 0.0
             Im = logistic_integrate_for_mhat(m, q, V, Vstar)
             Iv = logistic_integrate_for_Vhat(m, q, V, Vstar)

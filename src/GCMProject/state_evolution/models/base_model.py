@@ -88,9 +88,9 @@ class Model(object):
 
     def use_logistic_data_model(self):
         if self.Delta != 0:
-            raise Exception()
+            raise Exception('Noise has to be 0 when we use the logit model !')
         # no additional noise
-        self.type_of_data_model = 'logit'
+        self.str_teacher_data_model = 'logit'
 
     def use_probit_data_model(self):
-        self.type_of_data_model = 'probit'
+        self.str_teacher_data_model = 'probit'

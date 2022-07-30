@@ -1,6 +1,5 @@
 from random import sample
 from re import S
-from GCMProject.state_evolution.auxiliary import ft_logistic_integrals
 import numpy as np
 import scipy.stats as stats
 from scipy.integrate import quad
@@ -76,7 +75,7 @@ class BayesOptimal(Model):
         return V, q, m
 
     def _update_hatoverlaps(self, V, q, m):
-        if self.type_of_data_model == 'probit':
+        if self.str_teacher_data_model == 'probit':
             int_lims = 20.0
             Delta = self.effective_Delta
             def integrand(z):
@@ -87,15 +86,15 @@ class BayesOptimal(Model):
             # NOTE : Here, we must multiply by n / d => if we keep the noation n / d, by alpha * gamma
             Vhat = mhat = qhat = (self.alpha * self.gamma) * quad(integrand, -int_lims, int_lims, epsabs=1e-10, epsrel=1e-10, limit=200)[0]
             return Vhat, qhat, mhat
-        elif self.type_of_data_model == 'logit':
+        elif self.str_teacher_data_model == 'logit':
             Vstar = self.rho - m**2 / q
             somme = 0.0
             # not sure 
             for y in [-1.0, 1.0]:
-                somme += quad(lambda xi : np.exp(- xi**2 / 2.0) / np.sqrt(2 * np.pi) * ft_logistic_integrals.ft_logistic_ferm(y, np.sqrt(q)*xi, V, 1.0)**2  * utility.LogisticDataModel.Z0(y, m / np.sqrt(q) * xi, Vstar), -10.0, 10.0, limit=500)[0]  
+                somme += quad(lambda xi : np.exp(- xi**2 / 2.0) / np.sqrt(2 * np.pi) * utility.PseudoBayesianDataModel.f0(y, np.sqrt(q)*xi, V, beta = 1.0)**2  * utility.LogisticDataModel.Z0(y, m / np.sqrt(q) * xi, Vstar), -10.0, 10.0, limit=500)[0]  
             Vhat = mhat = qhat = (self.alpha * self.gamma) * somme
             return Vhat, qhat, mhat
-        print(self.type_of_data_model)
+        print(self.str_teacher_data_model)
         raise Exception()
 
     def update_se(self, V, q, m):
