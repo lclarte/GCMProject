@@ -93,7 +93,7 @@ class StateEvolution(object):
             relative_diff = self._get_relative_diff(t)
 
             if self.verbose:
-                print('t: {}, diff: {}, self overlaps: {}, teacher-student overlap: {}, time : {}'.format(t, diff, self.overlaps['self_overlap'][t+1], self.overlaps['teacher_student'][t+1], time_diff))
+                print('t: {}, diff: {}, self overlaps: {}, teacher-student overlap: {}, variance: {}, time : {}'.format(t, diff, self.overlaps['self_overlap'][t+1], self.overlaps['teacher_student'][t+1], self.overlaps['variance'][t+1], time_diff))
             
             if self.relative_tolerance == True and relative_diff < self.tol:
                 self.status = 1

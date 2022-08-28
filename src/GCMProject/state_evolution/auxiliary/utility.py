@@ -1,6 +1,7 @@
 from typing import List
 
 from zmq import EVENT_CLOSE_FAILED
+import mpmath
 import numpy as np
 import scipy.optimize as opt4
 from scipy.optimize import minimize_scalar, root_scalar
@@ -91,14 +92,14 @@ class LogisticDataModel:
         # With the sqrtV, it doesn't look normalized
         # return sqrtV * quad(lambda z : sigmoid(y * (z * sqrtV + w)) * np.exp(- z**2 / 2), -5.0, 5.0, limit=500)[0] / np.sqrt(2 * np.pi)
         # NOTE : Below, normalized partition function (so it defines an expectation)
-        return quad(lambda z : sigmoid(y * (z * sqrtV + w)) * np.exp(- z**2 / 2), -5.0, 5.0, limit=500)[0] / np.sqrt(2 * np.pi)
+        return quad(lambda z : sigmoid(y * (z * sqrtV + w)) * np.exp(- z**2 / 2), -10.0, 10.0, limit=500)[0] / np.sqrt(2 * np.pi)
 
     @classmethod
     def dZ0(self, y, w, V, V_threshold = 1e-10):
         if V > V_threshold:
             sqrtV = np.sqrt(V)
             # return quad(lambda z : z *  sigmoid(y * (z * sqrtV + w)) * np.exp(- z**2 / 2), -5.0, 5.0, limit=500)[0] / np.sqrt(2 * np.pi)
-            return quad(lambda z : z *  sigmoid(y * (z * sqrtV + w)) * np.exp(- z**2 / 2), -5.0, 5.0, limit=500)[0] / np.sqrt(2 * np.pi * V)
+            return quad(lambda z : z *  sigmoid(y * (z * sqrtV + w)) * np.exp(- z**2 / 2), -10.0, 10.0, limit=500)[0] / np.sqrt(2 * np.pi * V)
         else:
             return sigmoid(y * w)
 
@@ -108,31 +109,39 @@ class LogisticDataModel:
 
 class PseudoBayesianDataModel:
     """
-    The sign in p_out is wrong but it's ok because
+    The sign in p_out is wrong but it's ok because the sign in the likelihood is also wrong
+    TODO : Fix this 
     """
+    threshold_p = -10 
+    threshold_l = -10
+
     @classmethod
     def p_out(self, x):
-        if x > -10:
+        if x > self.threshold_p:
             return np.log(1. + np.exp(- x))
         else:
             return -x
 
     @classmethod
     def likelihood(self, z, beta):
-        return np.exp(-beta * self.p_out(z))
+        if z > self.threshold_l:
+            return np.exp(-beta * self.p_out(z))
+        # maybe simplifies the expression when z is very small ? 
+        return np.exp(beta * z)
 
     @classmethod
-    def Z0(self, y, w, V, beta = 1.0, bound = 5.0, threshold = 1e-10):
+    def Z0(self, y, w, V, beta =   1.0, bound = 5.0, threshold = 1e-10):
         if V > threshold:
             sqrtV = np.sqrt(V)
-            return quad(lambda z : self.likelihood(y * (z * sqrtV + w), beta) * np.exp(- z**2 / 2), -bound, bound, limit=500)[0] / np.sqrt(2 * np.pi)
+            return quad(lambda z : self.likelihood(y * (z * sqrtV + w), beta) * np.exp(- z**2 / 2), -bound, bound, limit=100)[0] / np.sqrt(2 * np.pi)
         else:
             return self.likelihood(y * w, beta)
 
     @classmethod
     def dZ0(self, y, w, V, beta = 1.0, bound = 5.0):
+        # derivative w.r.t w I think ? 
         sqrtV = np.sqrt(V)
-        return quad(lambda z : z * self.likelihood(y * (z * sqrtV + w), beta) * np.exp(- z**2 / 2), -bound, bound, limit=500)[0] / np.sqrt(2 * np.pi * V)
+        return quad(lambda z : z * self.likelihood(y * (z * sqrtV + w), beta) * np.exp(- z**2 / 2), -bound, bound, limit=100)[0] / np.sqrt(2 * np.pi * V)
 
     @classmethod
     def ddZ0(self, y, w, V, beta = 1.0, bound = 5.0, threshold = 1e-10, Z0 = None):
@@ -144,7 +153,16 @@ class PseudoBayesianDataModel:
 
     @classmethod
     def f0(self, y, w, V, beta = 1.0, bound = 5.0):
-        return self.dZ0(y, w, V, beta, bound) / self.Z0(y, w, V, beta, bound)
+        """
+        Z0 = mpmath.mp.mpf(self.Z0(y, w, V, beta, bound))
+        print(Z0)
+        dZ0 = mpmath.mp.mpf(self.dZ0(y, w, V, beta, bound))
+        mp_result = mpmath.fdiv(dZ0, Z0)
+        return float(mp_result)
+        """
+        z0 = self.Z0(y, w, V, beta, bound)
+        dz0 = self.dZ0(y, w, V, beta, bound)
+        return dz0 / z0
 
     @classmethod
     def df0(self, y, w, V, beta = 1.0, bound = 5.0):

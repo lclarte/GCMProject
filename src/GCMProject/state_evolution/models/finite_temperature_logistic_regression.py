@@ -184,6 +184,7 @@ class FiniteTemperatureLogisticRegression(Model):
     def get_log_partition(self, V, q, m, Vhat, qhat, mhat, beta, lambda_):
         """
         To get the evidence, take the (e.g. unnormalized) likelihood -> log_evidence + 0.5 * log(beta * lambda) 
+        Verifie le 22/08 : L'expression semble bonne (au signe pres )
         """
         return self.psi_w(Vhat, qhat, mhat, beta * lambda_) + self.alpha * self.psi_y(V, q, m, self.beta) - np.sqrt(self.gamma) * m * mhat + 0.5 * (q * Vhat - qhat * V) + 0.5 * V * Vhat
 
