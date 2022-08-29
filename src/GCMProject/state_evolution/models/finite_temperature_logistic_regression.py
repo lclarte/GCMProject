@@ -4,10 +4,11 @@ from math import erfc
 from random import sample
 
 import numpy as np
+from numba import jit
 from scipy.integrate import quad
 
 from .base_model import Model
-from ..auxiliary.ft_logistic_integrals import ft_integrate_for_mhat, ft_integrate_for_Vhat, ft_integrate_for_Qhat, ft_integrate_derivative_beta
+from ..auxiliary.ft_logistic_integrals import ft_integrate_for_mhat, ft_integrate_for_Vhat, ft_integrate_for_Qhat, ft_integrate_derivative_beta, ft_integrate_from_mhat_pseudobayesiandatamodel_probit_teacher
 from ..auxiliary import utility
 
 class FiniteTemperatureLogisticRegression(Model):
@@ -61,16 +62,18 @@ class FiniteTemperatureLogisticRegression(Model):
         }
         return info
 
-    def integrate_for_qvm(self, vhat, qhat, mhat, lamb):
+    @staticmethod
+    @jit(nopython=True)
+    def aux_integrate_for_qvm(vhat : np.float32, qhat : np.float32, mhat : np.float32, lamb : np.float32, gamma : np.float32, kappa1 : np.float32, kappastar : np.float32):
         """
         NOTE : self.gamma = student_size / teacher_size, mais le gamma qu'on definit ci-dessous est juste une valeur 
         utilisee dans Marcenko-Pastur. De meme, alpha ici ne vaut pas n / d mais est seulement une constante liee a MP
         """
-        alpha  = self.gamma
-        gamma  = 1.0 / self.gamma
+        alpha  = gamma
+        gamma  = 1.0 / gamma
         
-        sigma  = self.kappa1
-        kk     = self.kappastar**2
+        sigma  = kappa1
+        kk     = kappastar**2
         alphap = (sigma*(1 + np.sqrt(alpha)))**2
         alpham = (sigma*(1 - np.sqrt(alpha)))**2
         if lamb == 0:
@@ -98,6 +101,9 @@ class FiniteTemperatureLogisticRegression(Model):
             IQ = IQ + max(0,1-gamma)*qhat*kk**2/den**2
             IM = ((alpham+alphap+2*kk)*vhat+2*lamb-2*aux)/(4*alpha*vhat**2*sigma**2)
         return IV, IQ, IM
+
+    def integrate_for_qvm(self, vhat, qhat, mhat, lamb):
+        return self.aux_integrate_for_qvm(vhat, qhat, mhat, self.lamb, self.gamma, self.kappa1, self.kappastar)
 
     def _update_overlaps_spectrum(self, vhat, qhat, mhat, lamb):    
         IV, IQ, IM = self.integrate_for_qvm(vhat, qhat, mhat, lamb)
@@ -149,6 +155,8 @@ class FiniteTemperatureLogisticRegression(Model):
         # since the noise level stays the same 
         sigma = self.rho - m**2/q + self.Delta
         
+        # NOTE : Temporary, normally use ft_integrate_for_mhat/qhat/Vhat (m, q, V, sigma, self.beta, data_model=self.str_teacher_data_model)
+        # Im = ft_integrate_from_mhat_pseudobayesiandatamodel_probit_teacher(m, q, V, sigma, self.beta)
         Im = ft_integrate_for_mhat(m, q, V, sigma, self.beta, data_model=self.str_teacher_data_model)
         Iv = ft_integrate_for_Vhat(m, q, V, sigma, self.beta, data_model=self.str_teacher_data_model)
         Iq = ft_integrate_for_Qhat(m, q, V, sigma, self.beta, data_model=self.str_teacher_data_model)
@@ -230,26 +238,15 @@ class FiniteTemperatureLogisticRegression(Model):
         assert not self.optimize_beta
         if not self.initialized:
             raise Exception('Not initialized')
+        
         Vhat, qhat, mhat = self._update_hatoverlaps(V, q, m)
 
-        new_lambda = self.lamb
-
-        if self.optimize_lambda and self.beta == 1.0: 
-            if self.matching:
-                new_lambda = Vhat**2 / (mhat**2 + qhat - Vhat)
-            else:
-                while True:
-                    prev_lambda = new_lambda
-                    new_lambda  = self._optimize_lambda_evidence(Vhat, qhat, mhat, self.beta, prev_lambda)
-                    if np.abs(new_lambda - prev_lambda) < self.optimize_lambda_tolerance:
-                        break
+        # I removed the optimisation of beta and lambda for this branch
         
-        self.lamb = new_lambda
-
         V, q, m = self._update_overlaps(Vhat, qhat, mhat)
 
         if np.isnan(V) or np.isnan(m) or np.isnan(q):
-            raise Exception(f'The overlaps are NaN !')
+            raise Exception(f'The overlaps are NaN ! m, q, V, mhat, qhat, Vhat = {m, q, V, mhat, qhat, Vhat}')
 
         # record the overlaps for easier access 
         self.V, self.q, self.m, self.Vhat, self.qhat, self.mhat = V, q, m, Vhat, qhat, mhat
