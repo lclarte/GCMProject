@@ -4,18 +4,11 @@ NOTE : For now, we only use the probit data model but we can easily extend to th
 """
 
 import numpy as np
-from ..auxiliary.utility import LogisticDataModel, ProbitDataModel, PseudoBayesianDataModel, NormalizedPseudoBayesianDataModel
-from scipy.integrate import quad
-from numba import jit
+from   ..auxiliary.utility import LogisticDataModel, ProbitDataModel, PseudoBayesianDataModel, NormalizedPseudoBayesianDataModel
+from   scipy.integrate import quad
+from   numba import jit
 
-"""
-# NOTE : Looks like this function is not used
-def p_out(x):
-    if x > -10:
-        return np.log(1. + np.exp(- x))
-    else:
-        return -x
-"""
+FT_QUAD_BOUND = 10.0
 
 def modified_ft_f0(y, w, V, beta):
     try:
@@ -37,7 +30,7 @@ def modified_df0(y, w, V, beta):
 
 def ft_integrate_for_mhat(M, Q, V, Vstar, beta, data_model = 'probit', student_data_model = PseudoBayesianDataModel):
     assert student_data_model in [PseudoBayesianDataModel, NormalizedPseudoBayesianDataModel]
-    bound = 5.0
+    bound = FT_QUAD_BOUND
     somme = 0.0
     limit = 500
     # "current" = the one of the learner
@@ -51,7 +44,7 @@ def ft_integrate_for_mhat(M, Q, V, Vstar, beta, data_model = 'probit', student_d
 
 def ft_integrate_for_Qhat(M, Q, V, Vstar, beta, data_model = 'probit', student_data_model = PseudoBayesianDataModel):
     assert student_data_model in [PseudoBayesianDataModel, NormalizedPseudoBayesianDataModel]
-    bound = 5.0
+    bound = FT_QUAD_BOUND
     somme = 0.0
     limit = 500
     current_data_model = ProbitDataModel
@@ -64,7 +57,7 @@ def ft_integrate_for_Qhat(M, Q, V, Vstar, beta, data_model = 'probit', student_d
 
 def ft_integrate_for_Vhat(M, Q, V, Vstar, beta, data_model = 'probit', student_data_model = PseudoBayesianDataModel):
     assert student_data_model in [PseudoBayesianDataModel, NormalizedPseudoBayesianDataModel]
-    bound = 5.0
+    bound = FT_QUAD_BOUND
     somme = 0.0
     limit = 500
     current_data_model = ProbitDataModel
@@ -81,7 +74,7 @@ def ft_integrate_derivative_beta(V, q, m, Vstar, beta):
     => useful for evidence maximization
     NOTE : for the probit model, Vstar must include sigma**2
     """
-    bound              = 10.0
+    bound              = FT_QUAD_BOUND
     somme              = 0.0
     limit              = 500
     teacher_data_model = LogisticDataModel

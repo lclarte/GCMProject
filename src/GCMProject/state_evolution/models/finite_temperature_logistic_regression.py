@@ -8,7 +8,7 @@ from numba import jit
 from scipy.integrate import quad
 
 from .base_model import Model
-from ..auxiliary.ft_logistic_integrals import ft_integrate_for_mhat, ft_integrate_for_Vhat, ft_integrate_for_Qhat, ft_integrate_derivative_beta, ft_integrate_from_mhat_pseudobayesiandatamodel_probit_teacher
+from ..auxiliary.ft_logistic_integrals import ft_integrate_for_mhat, ft_integrate_for_Vhat, ft_integrate_for_Qhat, ft_integrate_derivative_beta
 from ..auxiliary import utility
 
 class FiniteTemperatureLogisticRegression(Model):

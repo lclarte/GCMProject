@@ -121,7 +121,6 @@ class PseudoBayesianDataModel:
     The sign in p_out is wrong but it's ok because the sign in the likelihood is also wrong
     TODO : Fix this 
     """
-
     @staticmethod
     @jit(nopython=True)
     def p_out(x : np.float32):
