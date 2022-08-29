@@ -1,11 +1,13 @@
-from typing import List
+"""
+NOTE : On the "jit" branch, we'll hardcode some functions to make sure they can be used with jit (and maybe accelerate the code ?)
+"""
 
-from zmq import EVENT_CLOSE_FAILED
-import mpmath
+from typing import List, no_type_check
+
+from numba import jit
 import numpy as np
-import scipy.optimize as opt4
-from scipy.optimize import minimize_scalar, root_scalar
-from scipy.special import erf, erfc, erfcx
+from scipy.special import erfc, erfcx
+from math import erfc
 from scipy.linalg import sqrtm
 from scipy.integrate import quad
 from datetime import datetime
@@ -73,17 +75,20 @@ def mp_integral(f : callable, gamma):
 
 # POURQUOI SIGMA APPARAIT PAS ??? -> apparait implicitement dans V 
 class ProbitDataModel:
-    @classmethod
-    def Z0(self, y, w, V):
-        return probit(y * w / np.sqrt(V))
+    @staticmethod
+    @jit(nopython=True)
+    def Z0(y : int, w : np.float32, V : np.float32):
+        return 0.5 * erfc(- (y * w / np.sqrt(V)) / np.sqrt(2))
 
-    @classmethod
-    def dZ0(self, y, w, V):
+    @staticmethod
+    @jit(nopython=True)
+    def dZ0(y : int, w : np.float32, V : np.float32):
         return y * np.exp(- w**2 / (2 * V)) / np.sqrt(2 * np.pi * V)
     
-    @classmethod
-    def f0(self, y, w, V):
-        return self.dZ0(y, w, V) / self.Z0(y, w, V)
+    @staticmethod
+    @jit(nopython=True)
+    def f0(y : int, w : np.float32, V : np.float32):
+        return (y * np.exp(- w**2 / (2 * V)) / np.sqrt(2 * np.pi * V)) / (0.5 * erfc(- (y * w / np.sqrt(V)) / np.sqrt(2)))
 
 class LogisticDataModel:
     @classmethod
@@ -107,41 +112,61 @@ class LogisticDataModel:
     def f0(self, y, w, V):
         return self.dZ0(y, w, V) / self.Z0(y, w, V)
 
+# NOTE : Put here temporarily
+threshold_p = np.float(-10)
+threshold_l = np.float(-10)
+
 class PseudoBayesianDataModel:
     """
     The sign in p_out is wrong but it's ok because the sign in the likelihood is also wrong
     TODO : Fix this 
     """
-    threshold_p = -10 
-    threshold_l = -10
 
-    @classmethod
-    def p_out(self, x):
-        if x > self.threshold_p:
+    @staticmethod
+    @jit(nopython=True)
+    def p_out(x : np.float32):
+        if x > threshold_p:
             return np.log(1. + np.exp(- x))
         else:
             return -x
 
-    @classmethod
-    def likelihood(self, z, beta):
-        if z > self.threshold_l:
-            return np.exp(-beta * self.p_out(z))
+    @staticmethod
+    @jit(nopython=True)
+    def likelihood(z : np.float32, beta : np.float32):
+        if z > threshold_l:
+            return np.exp(-beta * np.log(1. + np.exp(-z)))
         # maybe simplifies the expression when z is very small ? 
         return np.exp(beta * z)
 
-    @classmethod
-    def Z0(self, y, w, V, beta =   1.0, bound = 5.0, threshold = 1e-10):
+    @staticmethod
+    @jit(nopython=True)
+    def Z0_quad_argument(z : np.float32, y : int, w : np.float32, sqrtV : np.float32, beta : np.float32 = 1.0):
+        if y * (z * sqrtV + w) > threshold_l:
+            return np.exp(-beta * np.log(1. + np.exp(-(y * (z * sqrtV + w))))) * np.exp(- z**2 / 2)
+        else:
+            return np.exp(beta * (y * (z * sqrtV + w))) * np.exp(- z**2 / 2)
+
+    @staticmethod
+    def Z0(y : int, w : np.float32, V : np.float32, beta : np.float32 = 1.0, bound : np.float32 = 5.0, threshold : np.float32 = 1e-10):
         if V > threshold:
             sqrtV = np.sqrt(V)
-            return quad(lambda z : self.likelihood(y * (z * sqrtV + w), beta) * np.exp(- z**2 / 2), -bound, bound, limit=100)[0] / np.sqrt(2 * np.pi)
+            return quad(lambda z : PseudoBayesianDataModel.Z0_quad_argument(z, y, w, sqrtV, beta), -bound, bound, limit=100)[0] / np.sqrt(2.0 * np.pi)
         else:
-            return self.likelihood(y * w, beta)
+            return PseudoBayesianDataModel.likelihood(y * w, beta)
 
-    @classmethod
-    def dZ0(self, y, w, V, beta = 1.0, bound = 5.0):
+    @staticmethod
+    @jit(nopython=True)
+    def dZ0_quad_argument(z : np.float32, y : int, w : np.float32, sqrtV : np.float32, beta : np.float32 = 1.0):
+        if y * (z * sqrtV + w) > threshold_l:
+            return z * np.exp(-beta * np.log(1. + np.exp(-(y * (z * sqrtV + w))))) * np.exp(- z**2 / 2)
+        else:
+            return z * np.exp(beta * (y * (z * sqrtV + w))) * np.exp(- z**2 / 2)
+
+    @staticmethod
+    def dZ0(y, w, V, beta = 1.0, bound = 5.0):
         # derivative w.r.t w I think ? 
         sqrtV = np.sqrt(V)
-        return quad(lambda z : z * self.likelihood(y * (z * sqrtV + w), beta) * np.exp(- z**2 / 2), -bound, bound, limit=100)[0] / np.sqrt(2 * np.pi * V)
+        return quad(lambda z : PseudoBayesianDataModel.dZ0_quad_argument(z, y, w, sqrtV, beta), -bound, bound, limit=100)[0] / np.sqrt(2 * np.pi * V)
 
     @classmethod
     def ddZ0(self, y, w, V, beta = 1.0, bound = 5.0, threshold = 1e-10, Z0 = None):
@@ -151,24 +176,17 @@ class PseudoBayesianDataModel:
         # return - Zerm / V + quad(to_integrate, -bound, bound, limit=500)[0] / sqrtV
         return - Z0 / V + quad(to_integrate, -bound, bound, limit=500)[0] / V
 
-    @classmethod
-    def f0(self, y, w, V, beta = 1.0, bound = 5.0):
-        """
-        Z0 = mpmath.mp.mpf(self.Z0(y, w, V, beta, bound))
-        print(Z0)
-        dZ0 = mpmath.mp.mpf(self.dZ0(y, w, V, beta, bound))
-        mp_result = mpmath.fdiv(dZ0, Z0)
-        return float(mp_result)
-        """
-        z0 = self.Z0(y, w, V, beta, bound)
-        dz0 = self.dZ0(y, w, V, beta, bound)
+    @staticmethod
+    def f0(y, w, V, beta = 1.0, bound = 5.0):
+        z0 = PseudoBayesianDataModel.Z0(y, w, V, beta, bound)
+        dz0 = PseudoBayesianDataModel.dZ0(y, w, V, beta, bound)
         return dz0 / z0
 
-    @classmethod
-    def df0(self, y, w, V, beta = 1.0, bound = 5.0):
-        z0     = self.Z0(y, w, V, beta, bound)
-        dz0    = self.dZ0(y, w, V, beta, bound)
-        ddz0   = self.ddZ0(y, w, V, beta, bound, Z0 = z0)
+    @staticmethod
+    def df0(y, w, V, beta = 1.0, bound = 5.0):
+        z0     = PseudoBayesianDataModel.Z0(y, w, V, beta, bound)
+        dz0    = PseudoBayesianDataModel.dZ0(y, w, V, beta, bound)
+        ddz0   = PseudoBayesianDataModel.ddZ0(y, w, V, beta, bound, Z0 = z0)
         return ddz0 / z0 - (dz0 / z0)**2
 
     # Derivative w.r.t beta, to optimmize the hyper-parameters beta, lambda
