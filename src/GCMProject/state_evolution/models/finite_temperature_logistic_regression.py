@@ -103,7 +103,7 @@ class FiniteTemperatureLogisticRegression(Model):
         return IV, IQ, IM
 
     def integrate_for_qvm(self, vhat, qhat, mhat, lamb):
-        return self.aux_integrate_for_qvm(vhat, qhat, mhat, self.lamb, self.gamma, self.kappa1, self.kappastar)
+        return self.aux_integrate_for_qvm(vhat, qhat, mhat, lamb, self.gamma, self.kappa1, self.kappastar)
 
     def _update_overlaps_spectrum(self, vhat, qhat, mhat, lamb):    
         IV, IQ, IM = self.integrate_for_qvm(vhat, qhat, mhat, lamb)
@@ -154,9 +154,7 @@ class FiniteTemperatureLogisticRegression(Model):
         # the overparametrization does not change the hat overlap update so we don't have to change this 
         # since the noise level stays the same 
         sigma = self.rho - m**2/q + self.Delta
-        
-        # NOTE : Temporary, normally use ft_integrate_for_mhat/qhat/Vhat (m, q, V, sigma, self.beta, data_model=self.str_teacher_data_model)
-        # Im = ft_integrate_from_mhat_pseudobayesiandatamodel_probit_teacher(m, q, V, sigma, self.beta)
+
         Im = ft_integrate_for_mhat(m, q, V, sigma, self.beta, data_model=self.str_teacher_data_model)
         Iv = ft_integrate_for_Vhat(m, q, V, sigma, self.beta, data_model=self.str_teacher_data_model)
         Iq = ft_integrate_for_Qhat(m, q, V, sigma, self.beta, data_model=self.str_teacher_data_model)
@@ -230,7 +228,7 @@ class FiniteTemperatureLogisticRegression(Model):
         d_psi_y = ft_integrate_derivative_beta(V, q, m, Vstar, beta)
         d_psi_w = self.derivative_psi_w_beta_lambda(Vhat, qhat, mhat, beta * lambda_)
         return  - 0.5 / (lambda_ * d_psi_w + alpha * d_psi_y)
-
+    
     #######################
 
     def update_se(self, V, q, m):

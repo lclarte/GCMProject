@@ -78,7 +78,7 @@ class ProbitDataModel:
     @staticmethod
     @jit(nopython=True)
     def Z0(y : int, w : np.float32, V : np.float32):
-        return 0.5 * erfc(- (y * w / np.sqrt(V)) / np.sqrt(2))
+        return 0.5 * erfc(- (y * w) / np.sqrt(2 * V))
 
     @staticmethod
     @jit(nopython=True)
@@ -88,7 +88,7 @@ class ProbitDataModel:
     @staticmethod
     @jit(nopython=True)
     def f0(y : int, w : np.float32, V : np.float32):
-        return (y * np.exp(- w**2 / (2 * V)) / np.sqrt(2 * np.pi * V)) / (0.5 * erfc(- (y * w / np.sqrt(V)) / np.sqrt(2)))
+        return (y * np.exp(- w**2 / (2 * V)) / np.sqrt(2 * np.pi * V)) / (0.5 * erfc(- (y * w) / np.sqrt(2 * V)))
 
 class LogisticDataModel:
     @classmethod
@@ -166,7 +166,6 @@ class PseudoBayesianDataModel:
         # derivative w.r.t w I think ? 
         sqrtV = np.sqrt(V)
         return quad(lambda z : PseudoBayesianDataModel.dZ0_quad_argument(z, y, w, sqrtV, beta), -bound, bound, limit=100)[0] / np.sqrt(2 * np.pi * V)
-
     @classmethod
     def ddZ0(self, y, w, V, beta = 1.0, bound = 5.0, threshold = 1e-10, Z0 = None):
         Z0 = Z0 or self.Z0(y, w, V, beta, bound, threshold)
