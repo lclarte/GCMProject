@@ -3,10 +3,17 @@ Integrals for finite temperature logistic
 NOTE : For now, we only use the probit data model but we can easily extend to the logistic model
 """
 
+import sys
+# temporary solution
+sys.path.append('/Users/clarte/opt/usr/local/lib')
+import cython_functions
+
 import numpy as np
+
 from   ..auxiliary.utility import LogisticDataModel, ProbitDataModel, PseudoBayesianDataModel, NormalizedPseudoBayesianDataModel
 from   scipy.integrate import quad
 from   numba import jit
+
 
 FT_QUAD_BOUND = 10.0
 
@@ -56,7 +63,7 @@ def ft_integrate_for_Qhat(M, Q, V, Vstar, beta, data_model = 'probit', student_d
     return somme
 
 def ft_integrate_for_Vhat(M, Q, V, Vstar, beta, data_model = 'probit', student_data_model = PseudoBayesianDataModel):
-    assert student_data_model in [PseudoBayesianDataModel, NormalizedPseudoBayesianDataModel]
+    # assert student_data_model in [PseudoBayesianDataModel, NormalizedPseudoBayesianDataModel]
     bound = FT_QUAD_BOUND
     somme = 0.0
     limit = 500

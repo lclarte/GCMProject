@@ -2,7 +2,9 @@
 NOTE : On the "jit" branch, we'll hardcode some functions to make sure they can be used with jit (and maybe accelerate the code ?)
 """
 
-from typing import List, no_type_check
+import sys
+sys.path.append('/Users/clarte/opt/usr/local/lib')
+import cython_functions
 
 from numba import jit
 import numpy as np
@@ -59,6 +61,21 @@ def get_additional_noise_from_kappas(kappa1, kappastar, gamma):
         return np.sqrt((lambda_plus - lambda_) * (lambda_ - lambda_minus)) / (kkstar + kk1 * lambda_)
     return 1.0 - kk1 * quad(lambda lambda_ : to_integrate(lambda_, kk1, kkstar, lambda_minus, lambda_plus), lambda_minus, lambda_plus)[0] / (2 * np.pi)
 
+def convert_tau_add_to_tau_logit(tau_add, eta = np.sqrt(np.pi / 8)):
+    return np.sqrt( 1 + eta**2 * tau_add**2) / eta
+
+def get_gcm_logit_equivalent_noise(kappa1, kappastar, gamma, eta = np.sqrt(np.pi / 8)):
+    """
+    Returns the noise tau_{logit} that is used in the probit model corresponding to GCM logit. 
+    In other words, by using probit with this noise, we get approximately the performance of the logit
+    The formula is : 
+    tau_{logit} := \sqrt{1 + \eta^2 \tau^2_{\rm add}} / \eta
+    where tau_add is the usual additional noise due to the GCM
+    """
+    tau_add = get_additional_noise_from_kappas(kappa1, kappastar, gamma)
+    return convert_tau_add_to_tau_logit(tau_add)
+    
+
 # For Marcenko Pastur integration
 
 def mp_integral(f : callable, gamma):
@@ -91,16 +108,16 @@ class ProbitDataModel:
         return (y * np.exp(- w**2 / (2 * V)) / np.sqrt(2 * np.pi * V)) / (0.5 * erfc(- (y * w) / np.sqrt(2 * V)))
 
 class LogisticDataModel:
-    @classmethod
-    def Z0(self, y, w, V):
+    @staticmethod
+    def Z0(y, w, V):
         sqrtV = np.sqrt(V)
         # With the sqrtV, it doesn't look normalized
         # return sqrtV * quad(lambda z : sigmoid(y * (z * sqrtV + w)) * np.exp(- z**2 / 2), -5.0, 5.0, limit=500)[0] / np.sqrt(2 * np.pi)
         # NOTE : Below, normalized partition function (so it defines an expectation)
         return quad(lambda z : sigmoid(y * (z * sqrtV + w)) * np.exp(- z**2 / 2), -10.0, 10.0, limit=500)[0] / np.sqrt(2 * np.pi)
 
-    @classmethod
-    def dZ0(self, y, w, V, V_threshold = 1e-10):
+    @staticmethod
+    def dZ0(y, w, V, V_threshold = 1e-10):
         if V > V_threshold:
             sqrtV = np.sqrt(V)
             # return quad(lambda z : z *  sigmoid(y * (z * sqrtV + w)) * np.exp(- z**2 / 2), -5.0, 5.0, limit=500)[0] / np.sqrt(2 * np.pi)
@@ -122,7 +139,6 @@ class PseudoBayesianDataModel:
     TODO : Fix this 
     """
     @staticmethod
-    @jit(nopython=True)
     def p_out(x : np.float32):
         if x > threshold_p:
             return np.log(1. + np.exp(- x))
@@ -130,7 +146,6 @@ class PseudoBayesianDataModel:
             return -x
 
     @staticmethod
-    @jit(nopython=True)
     def likelihood(z : np.float32, beta : np.float32):
         if z > threshold_l:
             return np.exp(-beta * np.log(1. + np.exp(-z)))
@@ -138,39 +153,28 @@ class PseudoBayesianDataModel:
         return np.exp(beta * z)
 
     @staticmethod
-    @jit(nopython=True)
-    def Z0_quad_argument(z : np.float32, y : int, w : np.float32, sqrtV : np.float32, beta : np.float32 = 1.0):
-        if y * (z * sqrtV + w) > threshold_l:
-            return np.exp(-beta * np.log(1. + np.exp(-(y * (z * sqrtV + w))))) * np.exp(- z**2 / 2)
-        else:
-            return np.exp(beta * (y * (z * sqrtV + w))) * np.exp(- z**2 / 2)
-
-    @staticmethod
     def Z0(y : int, w : np.float32, V : np.float32, beta : np.float32 = 1.0, bound : np.float32 = 5.0, threshold : np.float32 = 1e-10):
         if V > threshold:
             sqrtV = np.sqrt(V)
-            return quad(lambda z : PseudoBayesianDataModel.Z0_quad_argument(z, y, w, sqrtV, beta), -bound, bound, limit=100)[0] / np.sqrt(2.0 * np.pi)
+            return quad(lambda z : cython_functions.pseudobayes_Z0_quad_argument(z, y, w, sqrtV, beta), -bound, bound, limit=100)[0] / np.sqrt(2.0 * np.pi)
+            # old : return quad(lambda z : PseudoBayesianDataModel.Z0_quad_argument(z, y, w, sqrtV, beta), -bound, bound, limit=100)[0] / np.sqrt(2.0 * np.pi)
         else:
-            return PseudoBayesianDataModel.likelihood(y * w, beta)
-
-    @staticmethod
-    @jit(nopython=True)
-    def dZ0_quad_argument(z : np.float32, y : int, w : np.float32, sqrtV : np.float32, beta : np.float32 = 1.0):
-        if y * (z * sqrtV + w) > threshold_l:
-            return z * np.exp(-beta * np.log(1. + np.exp(-(y * (z * sqrtV + w))))) * np.exp(- z**2 / 2)
-        else:
-            return z * np.exp(beta * (y * (z * sqrtV + w))) * np.exp(- z**2 / 2)
-
+            return cython_functions.pseudobayes_likelihood(y * w, beta)
+            # old : return PseudoBayesianDataModel.likelihood(y * w, beta)
+    
     @staticmethod
     def dZ0(y, w, V, beta = 1.0, bound = 5.0):
         # derivative w.r.t w I think ? 
         sqrtV = np.sqrt(V)
-        return quad(lambda z : PseudoBayesianDataModel.dZ0_quad_argument(z, y, w, sqrtV, beta), -bound, bound, limit=100)[0] / np.sqrt(2 * np.pi * V)
-    @classmethod
-    def ddZ0(self, y, w, V, beta = 1.0, bound = 5.0, threshold = 1e-10, Z0 = None):
-        Z0 = Z0 or self.Z0(y, w, V, beta, bound, threshold)
+        # old : return quad(lambda z : PseudoBayesianDataModel.dZ0_quad_argument(z, y, w, sqrtV, beta), -bound, bound, limit=100)[0] / np.sqrt(2 * np.pi * V)
+        return quad(lambda z : cython_functions.pseudobayes_dZ0_quad_argument(z, y, w, sqrtV, beta), -bound, bound, limit=100)[0] / np.sqrt(2 * np.pi * V)
+    
+    @staticmethod
+    def ddZ0(y, w, V, beta = 1.0, bound = 5.0, threshold = 1e-10, Z0 = None):
+        Z0 = Z0 or PseudoBayesianDataModel.Z0(y, w, V, beta, bound, threshold)
         sqrtV = np.sqrt(V)
-        to_integrate = lambda z : z**2 * self.likelihood(y * (z * sqrtV + w), beta) * np.exp(-z**2 / 2.) / np.sqrt(2 * np.pi)
+        # to_integrate = lambda z : z**2 * PseudoBayesianDataModel.likelihood(y * (z * sqrtV + w), beta) * np.exp(-z**2 / 2.) / np.sqrt(2 * np.pi)
+        to_integrate = lambda z : cython_functions.pseudobayes_ddZ0_quad_argument(z, y, w, sqrtV, beta)
         # return - Zerm / V + quad(to_integrate, -bound, bound, limit=500)[0] / sqrtV
         return - Z0 / V + quad(to_integrate, -bound, bound, limit=500)[0] / V
 

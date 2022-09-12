@@ -63,7 +63,6 @@ class FiniteTemperatureLogisticRegression(Model):
         return info
 
     @staticmethod
-    @jit(nopython=True)
     def aux_integrate_for_qvm(vhat : np.float32, qhat : np.float32, mhat : np.float32, lamb : np.float32, gamma : np.float32, kappa1 : np.float32, kappastar : np.float32):
         """
         NOTE : self.gamma = student_size / teacher_size, mais le gamma qu'on definit ci-dessous est juste une valeur 
