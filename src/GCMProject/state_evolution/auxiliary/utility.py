@@ -1,14 +1,9 @@
 from typing import List
 
-from zmq import EVENT_CLOSE_FAILED
-import mpmath
 import numpy as np
-import scipy.optimize as opt4
-from scipy.optimize import minimize_scalar, root_scalar
-from scipy.special import erf, erfc, erfcx
+from scipy.special import erfc, erfcx
 from scipy.linalg import sqrtm
 from scipy.integrate import quad
-from datetime import datetime
 
 sigmoid = np.vectorize(lambda x : 1. / (1. + np.exp( -x )))
 sigmoid_inv = np.vectorize(lambda y : np.log(y/(1-y)))
