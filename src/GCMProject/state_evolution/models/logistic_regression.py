@@ -79,9 +79,9 @@ class LogisticRegression(Model):
             IQ = IQ + max(0,1-gamma)*qhat*kk**2/den**2
             IM = ((alpham+alphap+2*kk)*vhat+2-2*aux)/(4*alpha*vhat**2*sigma**2)
         else:
-            den =lamb+kk*vhat
-            aux =np.sqrt(((alphap+kk)*vhat+lamb)*((alpham+kk)*vhat+lamb))
-            aux2=np.sqrt(((alphap+kk)*vhat+lamb)/((alpham+kk)*vhat+lamb))
+            den =lamb + kk * vhat
+            aux =np.sqrt(((alphap+kk)*vhat+lamb) * ((alpham+kk)*vhat+lamb))
+            aux2=np.sqrt(((alphap+kk)*vhat+lamb) / ((alpham+kk)*vhat+lamb))
             IV = ((kk*vhat+lamb)*((alphap+alpham)*vhat+2*lamb)-2*kk*vhat**2*np.sqrt(alphap*alpham)-2*lamb*aux)/(4*alpha*vhat**2*(kk*vhat+lamb)*sigma**2)
             IV = IV + max(0,1-gamma)*kk/(lamb+vhat*kk)
             I1= (alphap*vhat*(-3*den+aux)+4*den*(-den+aux)+alpham*vhat*(-2*alphap*vhat-3*den+aux))/(4*alpha*vhat**3*sigma**2*aux)

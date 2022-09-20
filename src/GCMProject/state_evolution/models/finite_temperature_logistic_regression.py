@@ -149,9 +149,9 @@ class FiniteTemperatureLogisticRegression(Model):
         # since the noise level stays the same 
         sigma = self.rho - m**2/q + self.Delta
         
-        Im = ft_integrate_for_mhat(m, q, V, sigma, self.beta, data_model=self.str_teacher_data_model)
-        Iv = ft_integrate_for_Vhat(m, q, V, sigma, self.beta, data_model=self.str_teacher_data_model)
-        Iq = ft_integrate_for_Qhat(m, q, V, sigma, self.beta, data_model=self.str_teacher_data_model)
+        Im = ft_integrate_for_mhat(m, q, V, sigma, self.beta, data_model=self.str_teacher_data_model, student_data_model=self.student_data_model)
+        Iv = ft_integrate_for_Vhat(m, q, V, sigma, self.beta, data_model=self.str_teacher_data_model, student_data_model=self.student_data_model)
+        Iq = ft_integrate_for_Qhat(m, q, V, sigma, self.beta, data_model=self.str_teacher_data_model, student_data_model=self.student_data_model)
             
         mhat = self.alpha * np.sqrt(self.gamma) * Im
         Vhat = - self.alpha * Iv
@@ -231,6 +231,9 @@ class FiniteTemperatureLogisticRegression(Model):
         if not self.initialized:
             raise Exception('Not initialized')
         Vhat, qhat, mhat = self._update_hatoverlaps(V, q, m)
+        self.mhat = mhat
+        self.qhat = qhat
+        self.Vhat = Vhat
 
         new_lambda = self.lamb
 

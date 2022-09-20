@@ -1,3 +1,4 @@
+from re import T
 from typing import List
 
 import numpy as np
@@ -10,6 +11,8 @@ sigmoid_inv = np.vectorize(lambda y : np.log(y/(1-y)))
 
 erf_prime = np.vectorize(lambda x : 2. / np.sqrt(np.pi) * np.exp(-x**2))
 erfc_prime = np.vectorize(lambda x : -2. / np.sqrt(np.pi) * np.exp(-x**2))
+
+LIMIT = 50
 
 def logerfc(x): 
     if x > 0.0:
@@ -85,16 +88,16 @@ class LogisticDataModel:
     def Z0(self, y, w, V):
         sqrtV = np.sqrt(V)
         # With the sqrtV, it doesn't look normalized
-        # return sqrtV * quad(lambda z : sigmoid(y * (z * sqrtV + w)) * np.exp(- z**2 / 2), -5.0, 5.0, limit=500)[0] / np.sqrt(2 * np.pi)
+        # return sqrtV * quad(lambda z : sigmoid(y * (z * sqrtV + w)) * np.exp(- z**2 / 2), -5.0, 5.0, limit=LIMIT)[0] / np.sqrt(2 * np.pi)
         # NOTE : Below, normalized partition function (so it defines an expectation)
-        return quad(lambda z : sigmoid(y * (z * sqrtV + w)) * np.exp(- z**2 / 2), -10.0, 10.0, limit=500)[0] / np.sqrt(2 * np.pi)
+        return quad(lambda z : sigmoid(y * (z * sqrtV + w)) * np.exp(- z**2 / 2), -10.0, 10.0, limit=LIMIT)[0] / np.sqrt(2 * np.pi)
 
     @classmethod
     def dZ0(self, y, w, V, V_threshold = 1e-10):
         if V > V_threshold:
             sqrtV = np.sqrt(V)
-            # return quad(lambda z : z *  sigmoid(y * (z * sqrtV + w)) * np.exp(- z**2 / 2), -5.0, 5.0, limit=500)[0] / np.sqrt(2 * np.pi)
-            return quad(lambda z : z *  sigmoid(y * (z * sqrtV + w)) * np.exp(- z**2 / 2), -10.0, 10.0, limit=500)[0] / np.sqrt(2 * np.pi * V)
+            # return quad(lambda z : z *  sigmoid(y * (z * sqrtV + w)) * np.exp(- z**2 / 2), -5.0, 5.0, limit=LIMIT)[0] / np.sqrt(2 * np.pi)
+            return quad(lambda z : z *  sigmoid(y * (z * sqrtV + w)) * np.exp(- z**2 / 2), -10.0, 10.0, limit=LIMIT)[0] / np.sqrt(2 * np.pi * V)
         else:
             return sigmoid(y * w)
 
@@ -107,8 +110,8 @@ class PseudoBayesianDataModel:
     The sign in p_out is wrong but it's ok because the sign in the likelihood is also wrong
     TODO : Fix this 
     """
-    threshold_p = -10 
-    threshold_l = -10
+    threshold_p = -20.0
+    threshold_l = -20.0
 
     @classmethod
     def p_out(self, x):
@@ -143,8 +146,8 @@ class PseudoBayesianDataModel:
         Z0 = Z0 or self.Z0(y, w, V, beta, bound, threshold)
         sqrtV = np.sqrt(V)
         to_integrate = lambda z : z**2 * self.likelihood(y * (z * sqrtV + w), beta) * np.exp(-z**2 / 2.) / np.sqrt(2 * np.pi)
-        # return - Zerm / V + quad(to_integrate, -bound, bound, limit=500)[0] / sqrtV
-        return - Z0 / V + quad(to_integrate, -bound, bound, limit=500)[0] / V
+        # return - Zerm / V + quad(to_integrate, -bound, bound, limit=LIMIT)[0] / sqrtV
+        return - Z0 / V + quad(to_integrate, -bound, bound, limit=LIMIT)[0] / V
 
     @classmethod
     def f0(self, y, w, V, beta = 1.0, bound = 5.0):
@@ -157,19 +160,31 @@ class PseudoBayesianDataModel:
         """
         z0 = self.Z0(y, w, V, beta, bound)
         dz0 = self.dZ0(y, w, V, beta, bound)
-        return dz0 / z0
+        try:
+            retour = dz0 / z0
+        except:
+            retour = 0.0
+        if np.isnan(retour):
+            retour = 0.0
+        return retour
 
     @classmethod
     def df0(self, y, w, V, beta = 1.0, bound = 5.0):
         z0     = self.Z0(y, w, V, beta, bound)
         dz0    = self.dZ0(y, w, V, beta, bound)
         ddz0   = self.ddZ0(y, w, V, beta, bound, Z0 = z0)
-        return ddz0 / z0 - (dz0 / z0)**2
+        try:
+            retour = ddz0 / z0 - (dz0 / z0)**2
+        except:
+            retour = 0.0
+        if np.isnan(retour):
+            retour = 0.0
+        return retour
 
     # Derivative w.r.t beta, to optimmize the hyper-parameters beta, lambda
     def dbetaZ0(self, y, w, V, beta = 1.0, bound = 5.0):
         sqrtV  = np.sqrt(V)
-        return quad(lambda z : self.p_out(y * (z * sqrtV + w)) * self.likelihood(y * (z * sqrtV + w), beta) * np.exp(-z**2 / 2.), -bound, bound, limit=500)[0] / np.sqrt(2 * np.pi)
+        return quad(lambda z : self.p_out(y * (z * sqrtV + w)) * self.likelihood(y * (z * sqrtV + w), beta) * np.exp(-z**2 / 2.), -bound, bound, limit=LIMIT)[0] / np.sqrt(2 * np.pi)
 
 class NormalizedPseudoBayesianDataModel:
     @classmethod
@@ -184,38 +199,50 @@ class NormalizedPseudoBayesianDataModel:
     def normalized_likelihood(self, z, beta):
         # the below expression is correct but can be simplified
         # return self.likelihood(z, beta) / (self.likelihood(z, beta) + self.likelihood(-z, beta))
-        return sigmoid(beta * np.log(sigmoid(z) / sigmoid(-z)) )
+        return sigmoid(beta * z)
 
     @classmethod
     def Z0(self, y, w, V, beta = 1.0, bound = 10.0):
         sqrtV  = np.sqrt(V)
-        return quad(lambda z : self.normalized_likelihood(y * (z * sqrtV + w) * np.exp(-z**2 / 2.), beta), -bound, bound, limit=500)[0] / np.sqrt(2 * np.pi)
+        return quad(lambda z : self.normalized_likelihood(y * (z * sqrtV + w), beta) * np.exp(-z**2 / 2.), -bound, bound, limit=LIMIT)[0] / np.sqrt(2 * np.pi)
 
     @classmethod
     def dZ0(self, y, w, V, beta = 1.0, bound = 10.0):
         sqrtV  = np.sqrt(V)
-        return quad(lambda z : z * self.normalized_likelihood(y * (z * sqrtV + w), beta)* np.exp(-z**2 / 2.), -bound, bound, limit=500)[0] / np.sqrt(2 * np.pi * V)
+        return quad(lambda z : z * self.normalized_likelihood(y * (z * sqrtV + w), beta)* np.exp(-z**2 / 2.), -bound, bound, limit=LIMIT)[0] / np.sqrt(2 * np.pi * V)
 
     @classmethod
     def ddZ0(self, y, w, V, beta = 1.0, bound = 10.0, threshold = 1e-10, Z0 = None):
         Z0           = Z0 or self.Z0(y, w, V, beta, bound, threshold)
         sqrtV        = np.sqrt(V)
         to_integrate = lambda z : z**2 * self.normalized_likelihood(y * (z * sqrtV + w), beta) * np.exp(-z**2 / 2.) / np.sqrt(2 * np.pi)
-        # return - Zerm / V + quad(to_integrate, -bound, bound, limit=500)[0] / sqrtV
-        return - Z0 / V + quad(to_integrate, -bound, bound, limit=500)[0] / V
+        # return - Zerm / V + quad(to_integrate, -bound, bound, limit=LIMIT)[0] / sqrtV
+        return - Z0 / V + quad(to_integrate, -bound, bound, limit=LIMIT)[0] / V
 
     @classmethod
-    def f0(self, y, w, V, beta = 1.0, bound = 10.0):
-        return self.dZ0(y, w, V, beta, bound) / self.Z0(y, w, V, beta, bound)
+    def f0(self, y, w, V, beta = 1.0, bound = 5.0):
+        z0 = self.Z0(y, w, V, beta, bound)
+        dz0 = self.dZ0(y, w, V, beta, bound)
+        try:
+            retour = dz0 / z0
+        except:
+            retour = 0.0
+        if np.isnan(retour):
+            retour = 0.0
+        return retour
 
     @classmethod
-    def df0(self, y, w, V, beta = 1.0, bound = 10.0):
-        z0   = self.Z0(y, w, V, beta, bound)
-        dz0  = self.dZ0(y, w, V, beta, bound)
-        ddz0 = self.ddZ0(y, w, V, beta, bound, Z0 = z0)
-        value = ddz0 / z0 - (dz0 / z0)**2
-        if np.isnan(value):
-            raise Exception(f'z0, dz0, ddz0 are {z0, dz0, ddz0} but df0 is Nan !')
+    def df0(self, y, w, V, beta = 1.0, bound = 5.0):
+        z0     = self.Z0(y, w, V, beta, bound)
+        dz0    = self.dZ0(y, w, V, beta, bound)
+        ddz0   = self.ddZ0(y, w, V, beta, bound, Z0 = z0)
+        try:
+            retour = ddz0 / z0 - (dz0 / z0)**2
+        except:
+            retour = 0.0
+        if np.isnan(retour):
+            retour = 0.0
+        return retour
 
     @classmethod
     def dbetaZ0(self, y, w, V, beta = 1.0, bound = 10.0, threshold = 1e-10):
