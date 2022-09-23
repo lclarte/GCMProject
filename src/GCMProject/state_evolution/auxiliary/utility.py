@@ -14,6 +14,8 @@ erfc_prime = np.vectorize(lambda x : -2. / np.sqrt(np.pi) * np.exp(-x**2))
 
 LIMIT = 50
 
+LOGIT_PROBIT_SCALING = 0.5875651988237005
+
 def logerfc(x): 
     if x > 0.0:
         return np.log(erfcx(x)) - x**2
@@ -85,12 +87,16 @@ class ProbitDataModel:
 
 class LogisticDataModel:
     @classmethod
-    def Z0(self, y, w, V):
+    def Z0(self, y, w, V, noise_std = 0.0):
         sqrtV = np.sqrt(V)
         # With the sqrtV, it doesn't look normalized
         # return sqrtV * quad(lambda z : sigmoid(y * (z * sqrtV + w)) * np.exp(- z**2 / 2), -5.0, 5.0, limit=LIMIT)[0] / np.sqrt(2 * np.pi)
         # NOTE : Below, normalized partition function (so it defines an expectation)
-        return quad(lambda z : sigmoid(y * (z * sqrtV + w)) * np.exp(- z**2 / 2), -10.0, 10.0, limit=LIMIT)[0] / np.sqrt(2 * np.pi)
+        if noise_std == 0.0:
+            return quad(lambda z : sigmoid(y * (z * sqrtV + w)) * np.exp(- z**2 / 2), -10.0, 10.0, limit=LIMIT)[0] / np.sqrt(2 * np.pi)
+        else:
+            # approximate version of the "noisy" logit data model
+            return quad(lambda z : sigmoid(y * (z * sqrtV + w) / np.sqrt(1.0 + noise_std**2 * LOGIT_PROBIT_SCALING**2)) * np.exp(- z**2 / 2), -10.0, 10.0, limit=LIMIT)[0] / np.sqrt(2 * np.pi)
 
     @classmethod
     def dZ0(self, y, w, V, V_threshold = 1e-10):
