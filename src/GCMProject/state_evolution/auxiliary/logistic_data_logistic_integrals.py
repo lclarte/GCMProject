@@ -38,7 +38,7 @@ def find_star(y, omega, Vstar):
 
 def z_star_arg(z, y, omega, Vstar):
     return omega - Vstar * logistic_loss_dl(y, z) - z
-    # oppose : (z - omega) - V * loss.dl
+    # oppose : (z - omega) + V * loss.dl
 
 def fout_dfout(y, omega, V):
         V_inf = V
