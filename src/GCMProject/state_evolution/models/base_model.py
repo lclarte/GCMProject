@@ -14,10 +14,12 @@ class Model(object):
 
     def __init__(self, *, sample_complexity, Delta):
         self.alpha = sample_complexity
+        # NOTE : Delta is the noise in the 
         self.Delta = Delta
         self.initialized = False
         self.using_kappa = False
         self.matching    = False
+        # NOTE : Only relevant for classification tasks ... 
         self.use_probit_data_model()
 
     def get_info(self):
